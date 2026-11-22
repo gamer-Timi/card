@@ -953,7 +953,86 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .die.is-hidden::after { border-color: rgba(215, 181, 117, 0.08); }
 
-.die.is-rolling {
+/* The table dice are real CSS 3D cubes, built from the same ivory/pip
+   language as the standalone dice animation. The fix panel keeps the flat
+   tiles because they are easier to click. */
+.die--cube {
+  --cube-half: 29px;
+  padding: 0;
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  perspective: 560px;
+  overflow: visible;
+}
+
+.die--cube::after { display: none; }
+.die--cube .die-value { display: none; }
+
+.die--cube .cube {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(-13deg) rotateY(16deg);
+}
+
+.cube-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid rgba(124, 102, 64, 0.28);
+  border-radius: 10px;
+  overflow: hidden;
+  backface-visibility: hidden;
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255, 255, 255, 0.85), transparent 27%),
+    linear-gradient(145deg, #fbf5e6, #e5d8bd 60%, #c9b996);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), inset 0 -3px 8px rgba(97, 72, 35, 0.16);
+}
+
+.cube-face::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(120, 91, 48, 0.1);
+  border-radius: 7px;
+  pointer-events: none;
+}
+
+.cube-face--front { transform: translateZ(var(--cube-half)); }
+.cube-face--back { transform: rotateY(180deg) translateZ(var(--cube-half)); filter: brightness(0.82); }
+.cube-face--right { transform: rotateY(90deg) translateZ(var(--cube-half)); filter: brightness(0.91); }
+.cube-face--left { transform: rotateY(-90deg) translateZ(var(--cube-half)); filter: brightness(0.86); }
+.cube-face--top { transform: rotateX(90deg) translateZ(var(--cube-half)); filter: brightness(1.06); }
+.cube-face--bottom { transform: rotateX(-90deg) translateZ(var(--cube-half)); filter: brightness(0.76); }
+
+.die--cube .pip { transform: scale(0.62); }
+
+.die--cube.is-rolling { animation: cubeDrop 0.78s cubic-bezier(0.18, 0.8, 0.28, 1) both; }
+.die--cube.is-rolling .cube { animation: cubeTumble 0.62s linear infinite; }
+.die--cube.is-fixed .cube-face { border-color: rgba(215, 181, 117, 0.58); }
+
+@keyframes cubeDrop {
+  0% { transform: translateY(-96px) scale(0.9); opacity: 0; }
+  62% { transform: translateY(4px) scale(1.025); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes cubeTumble {
+  0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+  35% { transform: rotateX(300deg) rotateY(440deg) rotateZ(18deg); }
+  70% { transform: rotateX(610deg) rotateY(850deg) rotateZ(-12deg); }
+  100% { transform: rotateX(720deg) rotateY(1080deg) rotateZ(0deg); }
+}
+
+.die:not(.die--cube).is-rolling {
   animation: dieTumble 0.58s linear infinite;
 }
 
@@ -1369,11 +1448,26 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 .coin-perspective {
+  position: relative;
   height: 238px;
   margin: 10px 0 0;
   display: grid;
   place-items: center;
   perspective: 900px;
+}
+
+.coin-perspective::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: 128px;
+  height: 16px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 68%);
+  filter: blur(4px);
+  pointer-events: none;
 }
 
 .coin3d {
@@ -1414,7 +1508,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   box-shadow: inset 0 0 0 4px rgba(255, 236, 184, 0.09);
 }
 
-.coin-face span { position: relative; font-family: var(--serif); font-size: 66px; font-weight: 700; line-height: 1; }
+.coin-face span { position: relative; font-family: var(--serif); font-size: 66px; font-weight: 700; line-height: 1; text-shadow: 0 1px 0 rgba(255, 247, 215, 0.45), 0 -1px 1px rgba(74, 44, 8, 0.55); }
 .coin-face em { position: relative; font-style: normal; font-size: 7px; font-weight: 650; letter-spacing: 0.24em; color: rgba(70, 40, 7, 0.5); }
 .coin-face--back { transform: rotateY(180deg); }
 
@@ -1759,6 +1853,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   .table-clock { width: 104px; height: 104px; top: 51%; }
   .table-dice { gap: 8px; }
   .table-dice .die { width: 52px; height: 52px; padding: 7px; border-radius: 11px; }
+  .table-dice .die--cube { --cube-half: 26px; padding: 0; border: 0; border-radius: 0; }
   .hud-player { min-width: 120px; }
   .hud-score { font-size: 21px; }
   .dice-row--large { gap: 17px; }
@@ -1787,6 +1882,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   .clock-caption { display: none; }
   .center-zone { top: 70%; gap: 8px; }
   .table-dice .die { width: 43px; height: 43px; padding: 5px; border-radius: 9px; }
+  .table-dice .die--cube { --cube-half: 21.5px; padding: 0; border: 0; border-radius: 0; }
   .table-dice .die-value { display: none; }
   .table-status { font-size: 8px; }
   .player-tag { font-size: 7px; }
@@ -1851,7 +1947,3 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   .game-footer { height: 42px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .menu-frame, .match-orbit i, .die.is-rolling, .die.is-landed, .particle, .coin3d { animation: none !important; }
-  .coin3d { transition: none !important; }
-}

@@ -5,6 +5,8 @@
   const $ = id => document.getElementById(id);
   const $$ = sel => Array.prototype.slice.call(document.querySelectorAll(sel));
   const TEST_MODE = new URLSearchParams(location.search).get('test') === '1';
+  const PREVIEW = new URLSearchParams(location.search).get('preview') ||
+    (location.hash.startsWith('#preview=') ? location.hash.slice(9) : null);
   const CATS = E.CATEGORIES;
   const CAT_BY_KEY = E.CATEGORY_BY_KEY;
 
@@ -420,6 +422,45 @@
     return die;
   }
 
+  function createCubeFace(kind, value) {
+    const face = document.createElement('div');
+    face.className = 'cube-face cube-face--' + kind;
+    const positions = PIP_POSITIONS[value] || [];
+    for (let i = 0; i < 9; i++) {
+      const pip = document.createElement('span');
+      pip.className = 'pip' + (positions.includes(i) ? '' : ' is-off');
+      if (value === 1) pip.classList.add('pip--one');
+      face.appendChild(pip);
+    }
+    return face;
+  }
+
+  function createCubeDie(value, className) {
+    if (value == null) return createDie(null, className);
+    const die = document.createElement('div');
+    die.className = 'die die--cube' + (className ? ' ' + className : '');
+    die.setAttribute('aria-label', value + ' 点');
+    const cube = document.createElement('div');
+    cube.className = 'cube';
+    const rightValue = (value % 6) + 1;
+    const topValue = ((value + 1) % 6) + 1;
+    const faces = [
+      ['front', value],
+      ['back', 7 - value],
+      ['right', rightValue],
+      ['left', 7 - rightValue],
+      ['top', topValue],
+      ['bottom', 7 - topValue]
+    ];
+    faces.forEach(([kind, faceValue]) => cube.appendChild(createCubeFace(kind, faceValue)));
+    die.appendChild(cube);
+    const label = document.createElement('span');
+    label.className = 'die-value';
+    label.textContent = value;
+    die.appendChild(label);
+    return die;
+  }
+
   function renderTableDice(dice, options = {}) {
     dom.tableDice.innerHTML = '';
     if (!dice || !dice.length) {
@@ -431,7 +472,7 @@
       return;
     }
     dice.forEach((v, i) => {
-      const die = createDie(v, options.rolling ? 'is-rolling' : '');
+      const die = createCubeDie(v, options.rolling ? 'is-rolling' : '');
       if (options.fixed && options.fixed.includes(i)) die.classList.add('is-fixed');
       dom.tableDice.appendChild(die);
     });
@@ -440,8 +481,10 @@
   function renderRollingTable() {
     dom.tableDice.innerHTML = '';
     for (let i = 0; i < 5; i++) {
-      const die = createDie(randomDie(), 'is-rolling');
-      die.style.animationDelay = (-i * 0.09) + 's';
+      const die = createCubeDie(randomDie(), 'is-rolling');
+      die.style.animationDelay = (-i * 0.06) + 's';
+      const cube = die.querySelector('.cube');
+      if (cube) cube.style.animationDelay = (-i * 0.12) + 's';
       dom.tableDice.appendChild(die);
     }
   }
@@ -1330,6 +1373,25 @@
 
   /* --------------------------------- boot --------------------------------- */
   initPlayers();
+  if (PREVIEW === 'table') {
+    S.mode = 'ai';
+    S.phase = 'rolled';
+    S.dice = [1, 2, 3, 4, 5];
+    showScreen('game');
+    renderTableDice(S.dice);
+    dom.tableStatus.textContent = '三维骰子演示';
+    updateHUD();
+    return;
+  }
+  if (PREVIEW === 'coin') {
+    showScreen('menu');
+    dom.coin3d.style.transition = 'none';
+    dom.coin3d.style.transform = 'rotateY(1980deg) rotateX(9deg)';
+    dom.coinTitle.textContent = '硬币落定';
+    dom.coinSub.textContent = '';
+    openOverlay(dom.coinOverlay);
+    return;
+  }
   showScreen('menu');
   tickClock();
   setTimeout(() => { cleanupStaleRooms(); }, 1200);
