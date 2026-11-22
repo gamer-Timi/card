@@ -157,26 +157,36 @@
 
     // The edge/rim first. It is a real cylinder wall, one quad per segment.
     const N = 72;
+    const edgeQuads = [];
     for (let i = 0; i < N; i++) {
       const a0 = i / N * TAU;
       const a1 = (i + 1) / N * TAU;
       const r0 = add(mul(ax, Math.cos(a0) * R), mul(ay, Math.sin(a0) * R));
       const r1 = add(mul(ax, Math.cos(a1) * R), mul(ay, Math.sin(a1) * R));
       const mid = add(pos, mul(add(r0, r1), 0.5));
-      if (dot(norm(add(r0, r1)), sub(eye, mid)) <= 0) continue;
+      const radial = norm(add(r0, r1));
+      if (dot(radial, sub(eye, mid)) <= 0) continue;
       const p0 = cam.project(add(front, r0));
       const p1 = cam.project(add(front, r1));
       const p2 = cam.project(add(back, r1));
       const p3 = cam.project(add(back, r0));
-      const shade = 0.55 + 0.45 * Math.max(0, dot(norm(add(r0, r1)), norm(sub(eye, mid))));
-      ctx.fillStyle = 'rgb(' + Math.round(116 * shade) + ',' + Math.round(78 * shade) + ',' + Math.round(30 * shade) + ')';
+      const shade = 0.55 + 0.45 * Math.max(0, dot(radial, norm(sub(eye, mid))));
+      edgeQuads.push({ p0, p1, p2, p3, shade, depth: cam.project(mid).z, i });
+    }
+    edgeQuads.sort((a, b) => b.depth - a.depth);
+    for (const edge of edgeQuads) {
+      ctx.fillStyle = 'rgb(' + Math.round(116 * edge.shade) + ',' + Math.round(78 * edge.shade) + ',' + Math.round(30 * edge.shade) + ')';
       ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.closePath();
+      ctx.moveTo(edge.p0.x, edge.p0.y); ctx.lineTo(edge.p1.x, edge.p1.y);
+      ctx.lineTo(edge.p2.x, edge.p2.y); ctx.lineTo(edge.p3.x, edge.p3.y); ctx.closePath();
       ctx.fill();
-      if (i % 3 === 0) {
+      ctx.strokeStyle = 'rgba(52, 31, 6, 0.18)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      if (edge.i % 3 === 0) {
         ctx.strokeStyle = 'rgba(52, 31, 6, 0.35)';
         ctx.lineWidth = 0.8;
-        ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p3.x, p3.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(edge.p0.x, edge.p0.y); ctx.lineTo(edge.p3.x, edge.p3.y); ctx.stroke();
       }
     }
 

@@ -248,7 +248,8 @@
         const room = await getRoom(tag);
         const updated = room && Number(room.updatedAt);
         if (!updated) continue;
-        if (now - updated > 10 * 60 * 1000) {
+        const ttl = room && room.status === 'open' ? 60000 : 10 * 60 * 1000;
+        if (now - updated > ttl) {
           try { await tdb('delete', { tag }); removed++; } catch (err) { /* ignore one bad room */ }
         }
       }
@@ -404,7 +405,8 @@
     const fraction = t.active && t.duration ? remaining / t.duration : 0;
     dom.clockArc.style.strokeDashoffset = String(CLOCK_C * (1 - fraction));
     dom.clockArc.classList.toggle('is-urgent', t.active && remaining <= 10000);
-    dom.clockHand.style.transform = 'rotate(' + ((1 - fraction) * 360) + 'deg)';
+    const elapsedSeconds = t.active && t.duration ? (t.duration - remaining) / 1000 : 0;
+    dom.clockHand.style.transform = 'rotate(' + (((elapsedSeconds % 60) / 60) * 360) + 'deg)';
     setMiniClock(dom.diceTimer, remaining, t.duration, t.active && dom.diceOverlay.classList.contains('is-open'));
     setMiniClock(dom.paperTimer, remaining, t.duration, t.active && dom.paperOverlay.classList.contains('is-open'));
     if (t.active && remaining <= 0 && !t.fired) {
