@@ -901,10 +901,6 @@
     S.dice = finalDice.slice().sort((a, b) => a - b);
     S.phase = 'rolled';
     renderTableDice(S.dice);
-    dom.tableDice.querySelectorAll('.die').forEach((die, i) => {
-      die.classList.add('is-landed');
-      die.style.animationDelay = (i * 0.035) + 's';
-    });
     dom.tableStatus.textContent = '已投出 · 等待固定';
     updateHUD();
     if (S.active === 0) {
