@@ -345,16 +345,14 @@
   }
 
   /* ------------------------------- dice ---------------------------------- */
-  function faceDefs(value) {
-    const right = (value % 6) + 1;
-    const top = ((value + 1) % 6) + 1;
+  function faceDefs() {
     return [
-      { n: v(0, 1, 0), u: v(1, 0, 0), vv: v(0, 0, 1), value: value },
-      { n: v(0, -1, 0), u: v(1, 0, 0), vv: v(0, 0, -1), value: 7 - value },
-      { n: v(0, 0, 1), u: v(1, 0, 0), vv: v(0, 1, 0), value: top },
-      { n: v(0, 0, -1), u: v(-1, 0, 0), vv: v(0, 1, 0), value: 7 - top },
-      { n: v(1, 0, 0), u: v(0, 0, -1), vv: v(0, 1, 0), value: right },
-      { n: v(-1, 0, 0), u: v(0, 0, 1), vv: v(0, 1, 0), value: 7 - right }
+      { n: v(0, 1, 0), u: v(1, 0, 0), vv: v(0, 0, 1), value: 1 },
+      { n: v(0, -1, 0), u: v(1, 0, 0), vv: v(0, 0, -1), value: 6 },
+      { n: v(0, 0, 1), u: v(1, 0, 0), vv: v(0, 1, 0), value: 2 },
+      { n: v(0, 0, -1), u: v(-1, 0, 0), vv: v(0, 1, 0), value: 5 },
+      { n: v(1, 0, 0), u: v(0, 0, -1), vv: v(0, 1, 0), value: 3 },
+      { n: v(-1, 0, 0), u: v(0, 0, 1), vv: v(0, 1, 0), value: 4 }
     ];
   }
 
@@ -394,12 +392,12 @@
     ctx.closePath();
   }
 
-  function drawDie(ctx, cam, die, values) {
+  function drawDie(ctx, cam, die) {
     const q = die.q;
     const pos = die.pos;
     const S = die.S;
     const axes = [qRot(q, v(1, 0, 0)), qRot(q, v(0, 1, 0)), qRot(q, v(0, 0, 1))];
-    const faces = faceDefs(values[die.index]);
+    const faces = faceDefs();
     const eye = cam.eye;
     const visible = [];
 
@@ -479,17 +477,17 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const S = 0.3;
     const cam = makeCamera(opts.tableX, opts.tableY, opts.radius, 0.9);
-    const values = (opts.values || [1, 2, 3, 4, 5]).slice(0, 5);
-    const diceState = values.map((value, i) => ({
+    const diceState = [0, 1, 2, 3, 4].map((i) => ({
       index: i,
       S: S,
-      pos: v((i - 2) * 0.84, 3.2 + i * 0.14, (i % 2 ? -0.16 : 0.14)),
-      vel: v((i - 2) * 0.14, 1.2 + (i % 3) * 0.25, (i % 2 ? -0.1 : 0.08)),
+      pos: v((i - 2) * 0.7, 3.2 + i * 0.14, (i % 2 ? -0.14 : 0.12)),
+      vel: v((i - 2) * 0.12, 1.2 + (i % 3) * 0.25, (i % 2 ? -0.1 : 0.08)),
       q: qNorm(qAxis(norm(v(0.7 + i * 0.11, 1, 0.35 + i * 0.09)), 0.5 + i * 0.14)),
       omega: v(4.8 + i * 0.42, 3.1 + i * 0.35, 3.9 + i * 0.27),
-      targetQ: qNorm(qAxis(v(0, 1, 0), 0.18 + i * 0.16)),
-      targetX: (i - 2) * 0.84,
-      targetZ: 0
+      targetX: (i - 2) * 0.7,
+      targetZ: 0,
+      targetQ: null,
+      resultValue: 1
     }));
     let last = performance.now();
     let started = last;
@@ -504,6 +502,24 @@
       const ay = qRot(d.q, v(0, 1, 0));
       const az = qRot(d.q, v(0, 0, 1));
       return S * (Math.abs(ax.y) + Math.abs(ay.y) + Math.abs(az.y));
+    }
+
+    function flatTarget(d) {
+      const faces = faceDefs();
+      let best = null;
+      let bestY = -2;
+      for (const f of faces) {
+        const n = qRot(d.q, f.n);
+        if (n.y > bestY) { bestY = n.y; best = { f, n }; }
+      }
+      const up = v(0, 1, 0);
+      const axis = cross(best.n, up);
+      const angle = Math.acos(Math.max(-1, Math.min(1, best.n.y)));
+      const delta = len(axis) < 0.0001 ? { x: 0, y: 0, z: 0, w: 1 } : qAxis(norm(axis), angle);
+      return {
+        q: qMul(delta, d.q),
+        value: best.f.value
+      };
     }
 
     function tick(now) {
@@ -553,6 +569,9 @@
           for (const d of diceState) {
             d.startQ = { x: d.q.x, y: d.q.y, z: d.q.z, w: d.q.w };
             d.startPos = { x: d.pos.x, y: d.pos.y, z: d.pos.z };
+            const target = flatTarget(d);
+            d.targetQ = target.q;
+            d.resultValue = target.value;
           }
         }
       } else {
@@ -572,7 +591,7 @@
           if (now - restAt > 450) {
             done = true;
             draw();
-            if (opts.onDone) opts.onDone();
+            if (opts.onDone) opts.onDone(diceState.map(d => d.resultValue));
             return;
           }
         }
@@ -584,7 +603,7 @@
     function draw() {
       ctx.clearRect(0, 0, width, height);
       for (const d of diceState) drawDiceShadow(ctx, cam, d.pos, S, Math.max(0, d.pos.y - S));
-      for (const d of diceState) drawDie(ctx, cam, d, values);
+      for (const d of diceState) drawDie(ctx, cam, d);
     }
 
     draw();

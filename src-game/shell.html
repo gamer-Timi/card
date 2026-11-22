@@ -143,15 +143,35 @@
       <canvas class="coin-table-canvas" id="coinCanvas" aria-label="投币动画"></canvas>
       <canvas class="dice-table-canvas" id="diceCanvas" aria-label="骰子动画"></canvas>
 
-      <div class="table-clock" id="clock" aria-label="计时器">
-        <svg viewBox="0 0 120 120" aria-hidden="true">
-          <circle class="clock-track" cx="60" cy="60" r="51"></circle>
-          <circle class="clock-arc" id="clockArc" cx="60" cy="60" r="51"></circle>
-          <g id="clockHand" class="clock-hand">
-            <line x1="60" y1="60" x2="60" y2="22"></line>
-            <circle cx="60" cy="60" r="3.2"></circle>
+      <div class="table-clock" id="clock" aria-label="闹钟计时器">
+        <svg viewBox="0 0 120 132" aria-hidden="true">
+          <g class="clock-bells">
+            <circle cx="31" cy="15" r="11"></circle>
+            <circle cx="89" cy="15" r="11"></circle>
+            <path d="M43 9 Q60 -4 77 9" fill="none"></path>
           </g>
-          <text class="clock-text" id="clockText" x="60" y="60" text-anchor="middle" dominant-baseline="middle">0</text>
+          <circle class="clock-track" cx="60" cy="66" r="49"></circle>
+          <g class="clock-ticks">
+            <line x1="60" y1="20" x2="60" y2="26"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(30 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(60 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(90 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(120 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(150 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(180 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(210 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(240 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(270 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(300 60 66)"></line>
+            <line x1="60" y1="20" x2="60" y2="26" transform="rotate(330 60 66)"></line>
+          </g>
+          <circle class="clock-arc" id="clockArc" cx="60" cy="66" r="49"></circle>
+          <g id="clockHand" class="clock-hand">
+            <line x1="60" y1="72" x2="60" y2="25"></line>
+            <line class="clock-tail" x1="60" y1="66" x2="60" y2="76"></line>
+            <circle cx="60" cy="66" r="3.2"></circle>
+          </g>
+          <path class="clock-feet" d="M38 114 L32 124 M82 114 L88 124" fill="none"></path>
         </svg>
         <span class="clock-caption">TURN CLOCK</span>
       </div>

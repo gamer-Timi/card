@@ -81,6 +81,9 @@
     roomId: null,
     roomHost: false,
     roomPoll: null,
+    roomJoinTag: null,
+    roomHeartbeat: null,
+    roomRaceTimer: null,
     matchBusy: false,
     coinToken: 0,
     coinTimer: null,
@@ -113,7 +116,6 @@
     particles: $('particles'),
     clockArc: $('clockArc'),
     clockHand: $('clockHand'),
-    clockText: $('clockText'),
     miniPapers: [$('miniPaper0'), $('miniPaper1')],
     miniPlayerTitle: $('miniPlayerTitle'),
     miniOppTitle: $('miniOppTitle'),
@@ -381,7 +383,7 @@
   }
 
   /* -------------------------------- timer -------------------------------- */
-  const CLOCK_C = 320.44;
+  const CLOCK_C = 307.88;
 
   function setMiniClock(el, remaining, duration, active) {
     if (!el) return;
@@ -403,7 +405,6 @@
     dom.clockArc.style.strokeDashoffset = String(CLOCK_C * (1 - fraction));
     dom.clockArc.classList.toggle('is-urgent', t.active && remaining <= 10000);
     dom.clockHand.style.transform = 'rotate(' + ((1 - fraction) * 360) + 'deg)';
-    dom.clockText.textContent = t.active ? Math.ceil(remaining / 1000) : '0';
     setMiniClock(dom.diceTimer, remaining, t.duration, t.active && dom.diceOverlay.classList.contains('is-open'));
     setMiniClock(dom.paperTimer, remaining, t.duration, t.active && dom.paperOverlay.classList.contains('is-open'));
     if (t.active && remaining <= 0 && !t.fired) {
@@ -860,13 +861,13 @@
     dom.tableStatus.textContent = '骰子投掷中…';
     const token = S.turnToken;
     const forced = options && options.forcedDice ? options.forcedDice.slice() : null;
-    const finalDice = (forced || Array.from({ length: 5 }, () => randomDie())).sort((a, b) => a - b);
 
-    if (TEST_MODE || !window.Anim3D || !dom.diceCanvas) {
-      renderTableDice(finalDice);
-      later(60, () => {
+    if (TEST_MODE || !window.Anim3D || !dom.diceCanvas || forced) {
+      const fixedDice = (forced || Array.from({ length: 5 }, () => randomDie())).sort((a, b) => a - b);
+      renderTableDice(fixedDice);
+      later(forced ? 220 : 60, () => {
         if (S.turnToken !== token) return;
-        afterRoll(finalDice, token);
+        afterRoll(fixedDice, token);
       });
       return;
     }
@@ -890,12 +891,15 @@
       tableX: tableX,
       tableY: tableY,
       radius: radius,
-      values: finalDice,
-      onDone: () => {
+      onDone: (rolled) => {
         dom.diceCanvas.classList.remove('is-active');
         dom.tableDice.style.visibility = '';
         S.diceAnim = null;
-        if (S.turnToken === token) afterRoll(finalDice, token);
+        const values = (rolled || []).filter(v => Number.isFinite(v)).slice(0, 5);
+        if (values.length !== 5) {
+          while (values.length < 5) values.push(1 + Math.floor(cryptoRandom() * 6));
+        }
+        if (S.turnToken === token) afterRoll(values, token);
       }
     });
   }
@@ -1407,16 +1411,42 @@
   }
 
   /* ------------------------------ match flow ------------------------------ */
-  async function releaseRoom() {
+  function clearRoomPoll() {
     if (S.roomPoll) clearInterval(S.roomPoll);
+    if (S.roomHeartbeat) clearInterval(S.roomHeartbeat);
+    if (S.roomRaceTimer) clearTimeout(S.roomRaceTimer);
     S.roomPoll = null;
+    S.roomHeartbeat = null;
+    S.roomRaceTimer = null;
+  }
+
+  async function releaseRoom() {
+    clearRoomPoll();
     const id = S.roomId;
+    const joinTag = S.roomJoinTag;
+    const wasHost = S.roomHost;
     S.roomId = null;
     S.roomHost = false;
+    S.roomJoinTag = null;
+    if (joinTag) {
+      try { await tdb('delete', { tag: joinTag }); } catch (err) { }
+    }
     if (!id) return;
-    try {
-      await tdb('delete', { tag: 'timicard_room_' + id });
-    } catch (err) { /* the cleanup sweep will remove it later */ }
+    if (wasHost) {
+      try { await tdb('delete', { tag: 'timicard_room_' + id }); } catch (err) { }
+      const joins = await listJoinTags(id);
+      for (const j of joins) {
+        try { await tdb('delete', { tag: j.tag }); } catch (err) { }
+      }
+      return;
+    }
+    const room = await getRoom('timicard_room_' + id);
+    if (room && room.guestId === CLIENT_ID) {
+      room.guestId = null;
+      room.status = 'open';
+      room.updatedAt = Date.now();
+      try { await tdb('update', { tag: 'timicard_room_' + id, value: JSON.stringify(room) }); } catch (err) { }
+    }
   }
 
   function roomPayload(raw) {
@@ -1427,11 +1457,56 @@
     }
   }
 
+  async function listJoinTags(roomId) {
+    try {
+      const page = await tdb('search', {
+        no: '1',
+        count: '100',
+        tag: 'timicard_join_' + roomId + '_',
+        type: 'tag'
+      });
+      const tags = page && Array.isArray(page.tag) ? page.tag : [];
+      const out = [];
+      for (const tag of tags) {
+        const res = await tdb('get', { tag });
+        const raw = tagValue(res, tag);
+        const value = roomPayload(raw);
+        if (value) out.push({ tag, value });
+      }
+      return out;
+    } catch (err) {
+      return [];
+    }
+  }
+
+  async function listOpenRooms(includeOwn) {
+    const tags = await listRoomTags();
+    const out = [];
+    for (const tag of tags) {
+      const room = await getRoom(tag);
+      if (!room || room.status !== 'open') continue;
+      if (Date.now() - Number(room.updatedAt || 0) > 25000) continue;
+      if (!includeOwn && room.hostId === CLIENT_ID) continue;
+      out.push({ tag, room });
+    }
+    out.sort((a, b) => {
+      const ca = Number(a.room.createdAt || 0);
+      const cb = Number(b.room.createdAt || 0);
+      if (ca !== cb) return ca - cb;
+      return a.tag.localeCompare(b.tag);
+    });
+    return out;
+  }
+
+  function showMatched() {
+    dom.matchTitle.textContent = '真人对手已就位';
+    dom.matchSub.textContent = '联机对局同步即将接入';
+    dom.matchSteps.forEach(s => s.classList.add('is-on'));
+  }
+
   async function startMatch() {
-    releaseRoom();
+    await releaseRoom();
     const token = ++S.matchToken;
-    S.roomId = null;
-    S.roomHost = false;
     S.matchBusy = true;
     dom.matchTitle.textContent = '匹配中';
     dom.matchSub.textContent = '正在搜索真人牌桌…';
@@ -1440,31 +1515,12 @@
     cleanupStaleRooms();
 
     let rooms = [];
-    try {
-      const tags = await listRoomTags();
-      for (const tag of tags) {
-        const room = await getRoom(tag);
-        if (room && room.hostId !== CLIENT_ID) rooms.push({ tag, room });
-      }
-    } catch (err) { /* fall through to create */ }
-
+    try { rooms = await listOpenRooms(false); } catch (err) { rooms = []; }
     if (token !== S.matchToken) return;
 
-    const now = Date.now();
-    const open = rooms.find(x => x.room.status === 'open' && now - Number(x.room.updatedAt || 0) < 30000);
-    if (open) {
-      try {
-        const room = { ...open.room, guestId: CLIENT_ID, status: 'matched', updatedAt: Date.now() };
-        await tdb('update', { tag: open.tag, value: JSON.stringify(room) });
-        if (token !== S.matchToken) return;
-        S.roomId = open.tag.replace('timicard_room_', '');
-        S.roomHost = false;
-        dom.matchTitle.textContent = '已找到真人';
-        dom.matchSub.textContent = '对手已加入 · 正在等待开局';
-        dom.matchSteps.forEach(s => s.classList.add('is-on'));
-        waitForMatchedRoom(token, true);
-        return;
-      } catch (err) { /* create a fresh room */ }
+    if (rooms.length) {
+      await joinRoom(rooms[0], token);
+      return;
     }
 
     const id = 'R' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -1481,42 +1537,124 @@
       S.roomId = id;
       S.roomHost = true;
       dom.matchTitle.textContent = '等待真人加入';
-      dom.matchSub.textContent = '房间 ' + id + ' · 把页面发给朋友';
+      dom.matchSub.textContent = '房间 ' + id + ' · 等待另一位玩家';
       dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i <= 1));
-      waitForMatchedRoom(token, false);
+      pollHost(token);
+      S.roomRaceTimer = setTimeout(() => resolveRoomRace(token), 1800);
     } catch (err) {
       dom.matchTitle.textContent = '暂时无法联网';
       dom.matchSub.textContent = '可以直接进入人机练习';
     }
   }
 
-  async function waitForMatchedRoom(token, alreadyMatched) {
+  async function resolveRoomRace(token) {
+    if (token !== S.matchToken || !S.roomHost || !S.roomId) return;
+    const rooms = await listOpenRooms(true);
+    const mineTag = 'timicard_room_' + S.roomId;
+    const mine = rooms.find(r => r.tag === mineTag);
+    if (!mine) return;
+    const canonical = rooms[0];
+    if (canonical.tag !== mineTag) {
+      const oldId = S.roomId;
+      clearRoomPoll();
+      S.roomId = null;
+      S.roomHost = false;
+      try { await tdb('delete', { tag: mineTag }); } catch (err) { }
+      await joinRoom(canonical, token);
+      if (oldId) {
+        dom.matchSub.textContent = '房间 ' + canonical.tag.replace('timicard_room_', '') + ' · 等待房主接受';
+      }
+    }
+  }
+
+  async function joinRoom(entry, token) {
+    const id = entry.tag.replace('timicard_room_', '');
+    S.roomId = id;
+    S.roomHost = false;
+    S.roomJoinTag = 'timicard_join_' + id + '_' + CLIENT_ID;
+    const body = { guest: CLIENT_ID, t: Date.now() };
+    try {
+      await tdb('update', { tag: S.roomJoinTag, value: JSON.stringify(body) });
+      if (token !== S.matchToken) return;
+      dom.matchTitle.textContent = '正在加入房间';
+      dom.matchSub.textContent = '房间 ' + id + ' · 等待房主接受';
+      dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i <= 1));
+      pollGuest(token);
+    } catch (err) {
+      dom.matchTitle.textContent = '加入房间失败';
+      dom.matchSub.textContent = '请取消后重试';
+    }
+  }
+
+  function pollHost(token) {
     if (S.roomPoll) clearInterval(S.roomPoll);
     const poll = async () => {
-      if (token !== S.matchToken || !S.roomId) return;
+      if (token !== S.matchToken || !S.roomHost || !S.roomId) return;
+      const tag = 'timicard_room_' + S.roomId;
+      const room = await getRoom(tag);
+      if (!room) {
+        dom.matchTitle.textContent = '房间已关闭';
+        dom.matchSub.textContent = '请取消后重新匹配';
+        return;
+      }
+      if (room.guestId && room.status === 'matched') {
+        showMatched();
+        return;
+      }
+      room.updatedAt = Date.now();
+      try { await tdb('update', { tag, value: JSON.stringify(room) }); } catch (err) { }
+      const joins = await listJoinTags(S.roomId);
+      if (!joins.length) {
+        dom.matchSub.textContent = '房间 ' + S.roomId + ' · 等待另一位玩家';
+        return;
+      }
+      joins.sort((a, b) => Number(a.value.t || 0) - Number(b.value.t || 0));
+      const chosen = joins[0];
+      room.guestId = chosen.value.guest;
+      room.status = 'matched';
+      room.updatedAt = Date.now();
       try {
-        const room = await getRoom('timicard_room_' + S.roomId);
-        if (!room) {
-          dom.matchTitle.textContent = '房间已关闭';
-          dom.matchSub.textContent = '可以取消后重新匹配';
-          return;
+        await tdb('update', { tag, value: JSON.stringify(room) });
+        for (const j of joins) {
+          try { await tdb('delete', { tag: j.tag }); } catch (err) { }
         }
-        const matched = alreadyMatched || room.status === 'matched' || !!room.guestId;
-        if (matched) {
-          dom.matchTitle.textContent = '真人对手已就位';
-          dom.matchSub.textContent = '联机对局同步即将接入';
-          dom.matchSteps.forEach(s => s.classList.add('is-on'));
-          return;
-        }
-        if (S.roomHost) {
-          room.updatedAt = Date.now();
-          await tdb('update', { tag: 'timicard_room_' + S.roomId, value: JSON.stringify(room) });
-          dom.matchSub.textContent = '房间 ' + S.roomId + ' · 等待真人加入';
-        }
-      } catch (err) { /* keep waiting */ }
+        showMatched();
+      } catch (err) { }
     };
     poll();
-    S.roomPoll = setInterval(poll, 1500);
+    S.roomPoll = setInterval(poll, 1200);
+  }
+
+  function pollGuest(token) {
+    if (S.roomPoll) clearInterval(S.roomPoll);
+    const poll = async () => {
+      if (token !== S.matchToken || S.roomHost || !S.roomId) return;
+      const room = await getRoom('timicard_room_' + S.roomId);
+      if (!room) {
+        dom.matchTitle.textContent = '房间已关闭';
+        dom.matchSub.textContent = '请取消后重新匹配';
+        return;
+      }
+      if (room.status === 'matched' && room.guestId === CLIENT_ID) {
+        if (S.roomJoinTag) {
+          try { await tdb('delete', { tag: S.roomJoinTag }); } catch (err) { }
+          S.roomJoinTag = null;
+        }
+        showMatched();
+        return;
+      }
+      if (room.status === 'matched' && room.guestId !== CLIENT_ID) {
+        dom.matchTitle.textContent = '房间已被占用';
+        dom.matchSub.textContent = '请取消后重新匹配';
+        return;
+      }
+      if (S.roomJoinTag) {
+        try { await tdb('update', { tag: S.roomJoinTag, value: JSON.stringify({ guest: CLIENT_ID, t: Date.now() }) }); } catch (err) { }
+      }
+      dom.matchSub.textContent = '房间 ' + S.roomId + ' · 等待房主接受';
+    };
+    poll();
+    S.roomPoll = setInterval(poll, 1200);
   }
 
   function cancelMatch() {
@@ -1615,13 +1753,16 @@
   });
 
   window.addEventListener('beforeunload', () => {
-    if (!S.roomId) return;
+    const tag = S.roomHost
+      ? (S.roomId ? 'timicard_room_' + S.roomId : null)
+      : S.roomJoinTag;
+    if (!tag) return;
     try {
       const body = new URLSearchParams({
         user: 'computor',
         secret: '58787c39',
         action: 'delete',
-        tag: 'timicard_room_' + S.roomId
+        tag
       });
       fetch('https://tinywebdb.appinventor.space/api', { method: 'POST', body, keepalive: true });
     } catch (err) { /* best effort */ }
