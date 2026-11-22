@@ -124,10 +124,9 @@
     matchSub: $('matchSub'),
     matchSteps: $$('.match-steps span'),
     btnMatchCancel: $('btnMatchCancel'),
-    coinOverlay: $('coinOverlay'),
     coinCanvas: $('coinCanvas'),
-    coinTitle: $('coinTitle'),
-    coinSub: $('coinSub'),
+    tableStage: $('tableStage'),
+    tableOuter: $('tableOuter'),
     diceOverlay: $('diceOverlay'),
     diceEyebrow: $('diceEyebrow'),
     diceTitle: $('diceTitle'),
@@ -275,17 +274,19 @@
   }
 
   function openOverlay(el) {
+    if (!el) return;
     el.classList.add('is-open');
     el.setAttribute('aria-hidden', 'false');
   }
 
   function closeOverlay(el) {
+    if (!el) return;
     el.classList.remove('is-open');
     el.setAttribute('aria-hidden', 'true');
   }
 
   function closeAllOverlays() {
-    [dom.matchOverlay, dom.coinOverlay, dom.diceOverlay, dom.paperOverlay, dom.rulePop, dom.jumpOverlay, dom.resultOverlay]
+    [dom.matchOverlay, dom.diceOverlay, dom.paperOverlay, dom.rulePop, dom.jumpOverlay, dom.resultOverlay]
       .forEach(closeOverlay);
   }
 
@@ -340,6 +341,7 @@
     dom.footerTurn.textContent = '第 ' + roundNumber() + ' / 11 回合';
     let phaseText = PHASE_LABEL[S.phase] || '等待开局';
     if (S.phase === 'intro') phaseText = S.active === 0 ? '你的回合' : '对方回合';
+    if (S.phase === 'coin') phaseText = '投币中';
     if (S.phase === 'fix') phaseText = S.active === 0 ? '你正在固定骰子' : '对方正在固定骰子';
     if (S.phase === 'adjust') phaseText = '双方暗调中';
     if (S.phase === 'score') phaseText = S.scorePlayer === 0 ? '你正在计分' : '对方正在计分';
@@ -704,6 +706,8 @@
     S.coinTimer = null;
     S.coinRaf = 0;
     S.diceRaf = 0;
+    if (dom.coinCanvas) dom.coinCanvas.classList.remove('is-active');
+    dom.game.classList.remove('is-coining');
     S.phase = 'idle';
     S.tutorialStage = 'off';
     setTutorial('');
@@ -741,6 +745,8 @@
     S.coinTimer = null;
     S.coinRaf = 0;
     S.diceRaf = 0;
+    if (dom.coinCanvas) dom.coinCanvas.classList.remove('is-active');
+    dom.game.classList.remove('is-coining');
     initPlayers();
     S.timer.active = false;
     dom.diceOverlay.classList.remove('is-open');
@@ -755,6 +761,10 @@
 
   function startCoin(forcedResult) {
     const token = ++S.coinToken;
+    stopTimer();
+    S.phase = 'coin';
+    dom.tableStatus.textContent = '投币决定先后';
+    updateHUD();
     if (S.coinTimer) clearTimeout(S.coinTimer);
     if (S.coinRaf) cancelAnimationFrame(S.coinRaf);
     S.coinTimer = null;
@@ -766,22 +776,28 @@
       return;
     }
 
-    dom.coinTitle.textContent = '硬币翻滚中…';
-    dom.coinSub.textContent = '落下后自动继续';
-    openOverlay(dom.coinOverlay);
-
     let ctx = null;
+    const stageRect = dom.tableStage.getBoundingClientRect();
+    const tableRect = dom.tableOuter.getBoundingClientRect();
+    const W = Math.max(320, stageRect.width);
+    const H = Math.max(240, stageRect.height);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    dom.coinCanvas.width = Math.round(W * dpr);
+    dom.coinCanvas.height = Math.round(H * dpr);
+    dom.coinCanvas.style.width = W + 'px';
+    dom.coinCanvas.style.height = H + 'px';
+    dom.coinCanvas.classList.add('is-active');
+    dom.game.classList.add('is-coining');
     try { ctx = dom.coinCanvas.getContext('2d'); } catch (err) { ctx = null; }
     if (!ctx) {
       S.coinTimer = setTimeout(() => finishCoin(result, token), 1400);
       return;
     }
-
-    const W = dom.coinCanvas.width;
-    const H = dom.coinCanvas.height;
-    const tableY = 226;
-    const radius = 82;
-    let y = 42;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const tableX = tableRect.left + tableRect.width / 2 - stageRect.left;
+    const tableY = tableRect.top + tableRect.height / 2 - stageRect.top;
+    const radius = Math.max(54, Math.min(92, tableRect.width * 0.105, tableRect.height * 0.17));
+    let y = tableY - Math.min(220, tableRect.height * 0.25);
     let vy = -330;
     let angle = 0;
     let angVel = 15;
@@ -802,7 +818,7 @@
       ctx.filter = 'blur(6px)';
       ctx.fillStyle = '#000';
       ctx.beginPath();
-      ctx.ellipse(W / 2, tableY + 17, radius * shadowScale, 12 * shadowScale, 0, 0, Math.PI * 2);
+      ctx.ellipse(tableX, tableY + 17, radius * shadowScale, 12 * shadowScale, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
@@ -811,7 +827,7 @@
       const face = cos >= 0 ? '先' : '后';
 
       ctx.save();
-      ctx.translate(W / 2, y);
+      ctx.translate(tableX, y);
 
       if (Math.abs(cos) < 0.12) {
         ctx.fillStyle = 'rgba(70, 42, 8, 0.9)';
@@ -877,11 +893,11 @@
       ctx.fillStyle = 'rgba(70, 40, 7, 0.86)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = '700 72px "Noto Serif SC", "Songti SC", "SimSun", serif';
+      ctx.font = '700 ' + Math.round(radius * 0.88) + 'px "Noto Serif SC", "Songti SC", "SimSun", serif';
       ctx.fillText(face, 0, 4);
-      ctx.font = '600 7px "Noto Serif SC", serif';
+      ctx.font = '600 ' + Math.max(6, Math.round(radius * 0.085)) + 'px "Noto Serif SC", serif';
       ctx.fillStyle = 'rgba(72, 42, 8, 0.6)';
-      ctx.fillText(face === '先' ? 'FIRST' : 'SECOND', 0, 53);
+      ctx.fillText(face === '先' ? 'FIRST' : 'SECOND', 0, radius * 0.65);
       ctx.restore();
 
       ctx.strokeStyle = 'rgba(255, 248, 215, 0.32)';
@@ -927,8 +943,7 @@
           angle = target;
           done = true;
           drawFrame();
-          dom.coinTitle.textContent = '硬币落定';
-          dom.coinSub.textContent = '';
+          dom.tableStatus.textContent = '硬币落定';
           S.coinTimer = setTimeout(() => finishCoin(result, token), 460);
           return;
         }
@@ -943,7 +958,8 @@
   function finishCoin(result, token) {
     if (token !== S.coinToken) return;
     S.coinTimer = null;
-    closeOverlay(dom.coinOverlay);
+    dom.coinCanvas.classList.remove('is-active');
+    dom.game.classList.remove('is-coining');
     if (S.mode === 'tutorial') tutorialAiFirst();
     else beginTurn(result === '先' ? 0 : 1);
   }
@@ -972,6 +988,7 @@
   }
 
   function startRoll(options = {}) {
+    stopTimer();
     S.phase = 'rolling';
     updateHUD();
     dom.tableStatus.textContent = '骰子投掷中…';
@@ -1141,8 +1158,8 @@
     const remaining = S.dice.map((_, i) => i).filter(i => !fixed.includes(i));
     const shuffled = E.shuffleDice(remaining, cryptoRandom);
     const fixedCount = fixed.length;
-    const activeCount = fixedCount === 1 ? 2 : fixedCount === 2 ? 1 : 0;
-    const inactiveCount = 2;
+    const activeCount = fixedCount === 1 ? 2 : 1;
+    const inactiveCount = fixedCount === 3 ? 1 : 2;
     const activeVals = shuffled.slice(0, activeCount).map(i => S.dice[i]);
     const inactiveVals = shuffled.slice(activeCount).map(i => S.dice[i]);
     const humanIsActive = S.active === 0;
@@ -1183,7 +1200,7 @@
     openOverlay(dom.diceOverlay);
     if (S.mode === 'tutorial') {
       if (S.tutorialStage === 'p1adjust') setTutorial('你分到 1 颗。把它调整好后确定；对方会补上两颗 1。');
-      else if (S.tutorialStage === 'finalAdjust') setTutorial('你分到 0 颗骰子。对方会把两颗骰子调成 5 和 2。');
+      else if (S.tutorialStage === 'finalAdjust') setTutorial('你分到 1 颗，对方 1 颗（暗置）。对方会补一个 5；直接确定即可凑出四条 5。');
     } else {
       setTutorial('');
     }
@@ -1281,7 +1298,7 @@
       const p = humanValues[0] || 1;
       aiValues = E.tutorialAiResponse(fixedValues, p);
     } else if (S.mode === 'tutorial' && S.tutorialStage === 'finalAdjust') {
-      aiValues = [5, 2];
+      aiValues = [5];
     } else {
       aiValues = a.aiValues ? a.aiValues.slice() : [];
     }
