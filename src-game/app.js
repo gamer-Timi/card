@@ -68,10 +68,12 @@
     coinPending: false,
     coinForced: null,
     coinFallback: null,
+    coinPoll: null,
     coinResult: null,
     diceCinemaPending: false,
     diceCinemaToken: 0,
     diceCinemaFallback: null,
+    diceCinemaPoll: null,
     viewPaperPlayer: null
   };
 
@@ -156,6 +158,68 @@
       return a[0] / 4294967296;
     }
     return Math.random();
+  }
+
+  async function tdb(action, params = {}) {
+    const body = new URLSearchParams({
+      user: 'computor',
+      secret: '58787c39',
+      action,
+      ...params
+    });
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 5500) : null;
+    try {
+      const res = await fetch('https://tinywebdb.appinventor.space/api', {
+        method: 'POST',
+        body,
+        signal: controller ? controller.signal : undefined
+      });
+      const text = await res.text();
+      return text ? JSON.parse(text) : {};
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  // Housekeeping for the room namespace described in 规则.txt. It only
+  // removes rooms that have been untouched for a long time; active rooms and
+  // rooms just created by another player are left alone.
+  async function cleanupStaleRooms() {
+    try {
+      const last = Number(localStorage.getItem('timicard_cleanup_at') || 0);
+      if (Date.now() - last < 5 * 60 * 1000) return 0;
+      localStorage.setItem('timicard_cleanup_at', String(Date.now()));
+    } catch (err) { /* storage can be disabled */ }
+
+    let removed = 0;
+    try {
+      for (let no = 1; no <= 301; no += 100) {
+        const page = await tdb('search', {
+          no: String(no),
+          count: '100',
+          tag: 'timicard_room_',
+          type: 'tag'
+        });
+        let data = page;
+        if (page && page.data && typeof page.data === 'object') data = page.data;
+        if (!data || typeof data !== 'object') break;
+        const entries = Object.entries(data).filter(([k]) => k.startsWith('timicard_room_'));
+        if (!entries.length) break;
+        const now = Date.now();
+        for (const [tag, raw] of entries) {
+          let room = null;
+          try { room = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (err) { room = null; }
+          const updated = room && Number(room.updatedAt);
+          if (!updated) continue;
+          if (now - updated > 10 * 60 * 1000) {
+            try { await tdb('delete', { tag }); removed++; } catch (err) { /* ignore one bad room */ }
+          }
+        }
+        if (entries.length < 100) break;
+      }
+    } catch (err) { /* network is optional */ }
+    return removed;
   }
 
   function randomDie() { return 1 + Math.floor(cryptoRandom() * 6); }
@@ -516,13 +580,17 @@
     S.coinToken++;
     S.coinPending = false;
     if (S.coinFallback) clearTimeout(S.coinFallback);
+    if (S.coinPoll) clearInterval(S.coinPoll);
     S.coinFallback = null;
+    S.coinPoll = null;
     S.phase = 'idle';
     S.tutorialStage = 'off';
     setTutorial('');
     S.diceCinemaPending = false;
     if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
+    if (S.diceCinemaPoll) clearInterval(S.diceCinemaPoll);
     S.diceCinemaFallback = null;
+    S.diceCinemaPoll = null;
     if (dom.coinFrame) dom.coinFrame.src = 'about:blank';
     if (dom.diceCinemaFrame) dom.diceCinemaFrame.src = 'about:blank';
     closeAllOverlays();
@@ -555,8 +623,12 @@
     S.diceCinemaPending = false;
     if (S.coinFallback) clearTimeout(S.coinFallback);
     if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
+    if (S.coinPoll) clearInterval(S.coinPoll);
+    if (S.diceCinemaPoll) clearInterval(S.diceCinemaPoll);
     S.coinFallback = null;
     S.diceCinemaFallback = null;
+    S.coinPoll = null;
+    S.diceCinemaPoll = null;
     if (dom.diceCinemaFrame) dom.diceCinemaFrame.src = 'about:blank';
     initPlayers();
     S.timer.active = false;
@@ -576,6 +648,8 @@
     S.coinForced = forcedResult || null;
     S.coinResult = null;
     if (S.coinFallback) clearTimeout(S.coinFallback);
+    if (S.coinPoll) clearInterval(S.coinPoll);
+    S.coinPoll = null;
     if (TEST_MODE) {
       setTimeout(() => {
         if (token === S.coinToken) resolveCoin(forcedResult || (cryptoRandom() < 0.5 ? '先' : '后'), token);
@@ -585,17 +659,33 @@
     const faceParam = forcedResult ? '&face=' + (forcedResult === '先' ? 'heads' : 'tails') : '';
     dom.coinFrame.src = 'coin.html?embed=1' + faceParam + '&t=' + Date.now();
     openOverlay(dom.coinOverlay);
+
+    S.coinPoll = setInterval(() => {
+      if (!S.coinPending) return;
+      try {
+        const api = dom.coinFrame.contentWindow && dom.coinFrame.contentWindow.__coin;
+        if (!api) return;
+        const snap = api.snapshot();
+        if (snap && snap.phase === 'settled' && snap.final) {
+          resolveCoin(snap.final.face === 'heads' ? '先' : '后', token);
+        }
+      } catch (err) { /* cross-origin file mode: wait for postMessage / fallback */ }
+    }, 240);
+
     S.coinFallback = setTimeout(() => {
       if (token !== S.coinToken || !S.coinPending) return;
+      showToast('投币动画未响应，已使用备用结果', 1800);
       resolveCoin(forcedResult || (cryptoRandom() < 0.5 ? '先' : '后'), token);
-    }, 16000);
+    }, 10000);
   }
 
   function resolveCoin(result, token) {
     if (token !== S.coinToken || !S.coinPending) return;
     S.coinPending = false;
     if (S.coinFallback) clearTimeout(S.coinFallback);
+    if (S.coinPoll) clearInterval(S.coinPoll);
     S.coinFallback = null;
+    S.coinPoll = null;
     S.coinResult = result;
     setTimeout(() => {
       if (token !== S.coinToken) return;
@@ -678,19 +768,36 @@
     const token = ++S.diceCinemaToken;
     S.diceCinemaPending = true;
     if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
+    if (S.diceCinemaPoll) clearInterval(S.diceCinemaPoll);
     dom.diceCinemaFrame.src = 'dice.html?embed=1&t=' + Date.now();
     openOverlay(dom.diceCinema);
+
+    S.diceCinemaPoll = setInterval(() => {
+      if (!S.diceCinemaPending) return;
+      try {
+        const api = dom.diceCinemaFrame.contentWindow && dom.diceCinemaFrame.contentWindow.__dice;
+        if (!api) return;
+        const snap = api.snapshot();
+        if (snap && snap.phase === 'settled' && snap.values) {
+          finishDiceCinema(snap.values, turnToken);
+        }
+      } catch (err) { /* cross-origin file mode: wait for postMessage / fallback */ }
+    }, 240);
+
     S.diceCinemaFallback = setTimeout(() => {
       if (!S.diceCinemaPending || token !== S.diceCinemaToken) return;
+      showToast('骰子动画未响应，已使用备用骰面', 1600);
       finishDiceCinema(Array.from({ length: 5 }, () => randomDie()), turnToken);
-    }, 16000);
+    }, 10000);
   }
 
   function finishDiceCinema(values, turnToken) {
     if (!S.diceCinemaPending) return;
     S.diceCinemaPending = false;
     if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
+    if (S.diceCinemaPoll) clearInterval(S.diceCinemaPoll);
     S.diceCinemaFallback = null;
+    S.diceCinemaPoll = null;
     closeOverlay(dom.diceCinema);
     dom.diceCinemaFrame.src = 'about:blank';
     const clean = (values || []).map(v => Number(v)).filter(v => v >= 1 && v <= 6);
@@ -1182,18 +1289,23 @@
     dom.matchSub.textContent = '正在寻找空闲牌桌…';
     dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i === 0));
     openOverlay(dom.matchOverlay);
-    setTimeout(() => { if (token !== S.matchToken) return; dom.matchSub.textContent = '已找到候选牌桌，正在同步…'; dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i <= 1)); }, 1500);
+    cleanupStaleRooms();
     setTimeout(() => {
       if (token !== S.matchToken) return;
-      dom.matchTitle.textContent = '匹配成功';
-      dom.matchSub.textContent = '对手已就位 · 练习对局';
+      dom.matchSub.textContent = '当前没有其他玩家在线';
+      dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i <= 1));
+    }, 1600);
+    setTimeout(() => {
+      if (token !== S.matchToken) return;
+      dom.matchTitle.textContent = '暂未找到真人';
+      dom.matchSub.textContent = '即将进入人机练习';
       dom.matchSteps.forEach(s => s.classList.add('is-on'));
-    }, 3100);
+    }, 2800);
     setTimeout(() => {
       if (token !== S.matchToken) return;
       closeOverlay(dom.matchOverlay);
       startGame('ai');
-    }, 4300);
+    }, 4100);
   }
 
   function cancelMatch() {
@@ -1206,6 +1318,12 @@
   $('btnMatch').addEventListener('click', startMatch);
   $('btnRulesBack').addEventListener('click', goMenu);
   $('btnTutorial').addEventListener('click', startTutorial);
+  $('btnMatchPractice').addEventListener('click', () => {
+    S.matchToken++;
+    closeOverlay(dom.matchOverlay);
+    startGame('ai');
+  });
+  $('btnPractice').addEventListener('click', () => startGame('ai'));
   $('btnMatchCancel').addEventListener('click', cancelMatch);
   $('btnQuit').addEventListener('click', () => {
     if (S.phase !== 'over' && S.players.length) {
@@ -1216,17 +1334,14 @@
   });
 
   window.addEventListener('message', event => {
-    if (dom.coinFrame && dom.coinFrame.contentWindow && event.source === dom.coinFrame.contentWindow) {
-      if (event.data && event.data.type === 'coin-toss-result') {
-        const result = event.data.face === 'heads' ? '先' : '后';
-        resolveCoin(result, S.coinToken);
-      }
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'coin-toss-result') {
+      resolveCoin(data.face === 'heads' ? '先' : '后', S.coinToken);
       return;
     }
-    if (dom.diceCinemaFrame && dom.diceCinemaFrame.contentWindow && event.source === dom.diceCinemaFrame.contentWindow) {
-      if (event.data && event.data.type === 'dice-roll-result') {
-        finishDiceCinema(event.data.values, S.turnToken);
-      }
+    if (data.type === 'dice-roll-result') {
+      finishDiceCinema(data.values, S.turnToken);
     }
   });
 
@@ -1322,5 +1437,6 @@
   initPlayers();
   showScreen('menu');
   tickClock();
+  setTimeout(() => { cleanupStaleRooms(); }, 1200);
 
 })();
