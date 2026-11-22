@@ -84,6 +84,8 @@
     matchBusy: false,
     coinToken: 0,
     coinTimer: null,
+    coinAnim: null,
+    diceAnim: null,
     coinRaf: 0,
     diceRaf: 0,
     viewPaperPlayer: null
@@ -125,6 +127,7 @@
     matchSteps: $$('.match-steps span'),
     btnMatchCancel: $('btnMatchCancel'),
     coinCanvas: $('coinCanvas'),
+    diceCanvas: $('diceCanvas'),
     tableStage: $('tableStage'),
     tableOuter: $('tableOuter'),
     diceOverlay: $('diceOverlay'),
@@ -703,9 +706,13 @@
     if (S.coinTimer) clearTimeout(S.coinTimer);
     if (S.coinRaf) cancelAnimationFrame(S.coinRaf);
     if (S.diceRaf) cancelAnimationFrame(S.diceRaf);
+    if (S.coinAnim) S.coinAnim.cancel();
+    if (S.diceAnim) S.diceAnim.cancel();
     S.coinTimer = null;
     S.coinRaf = 0;
     S.diceRaf = 0;
+    S.coinAnim = null;
+    S.diceAnim = null;
     if (dom.coinCanvas) dom.coinCanvas.classList.remove('is-active');
     dom.game.classList.remove('is-coining');
     S.phase = 'idle';
@@ -742,9 +749,13 @@
     if (S.coinTimer) clearTimeout(S.coinTimer);
     if (S.coinRaf) cancelAnimationFrame(S.coinRaf);
     if (S.diceRaf) cancelAnimationFrame(S.diceRaf);
+    if (S.coinAnim) S.coinAnim.cancel();
+    if (S.diceAnim) S.diceAnim.cancel();
     S.coinTimer = null;
     S.coinRaf = 0;
     S.diceRaf = 0;
+    S.coinAnim = null;
+    S.diceAnim = null;
     if (dom.coinCanvas) dom.coinCanvas.classList.remove('is-active');
     dom.game.classList.remove('is-coining');
     initPlayers();
@@ -766,198 +777,42 @@
     dom.tableStatus.textContent = '投币决定先后';
     updateHUD();
     if (S.coinTimer) clearTimeout(S.coinTimer);
-    if (S.coinRaf) cancelAnimationFrame(S.coinRaf);
+    if (S.coinAnim) S.coinAnim.cancel();
     S.coinTimer = null;
-    S.coinRaf = 0;
+    S.coinAnim = null;
     const result = forcedResult || (cryptoRandom() < 0.5 ? '先' : '后');
 
-    if (TEST_MODE) {
+    if (TEST_MODE || !window.Anim3D) {
       S.coinTimer = setTimeout(() => finishCoin(result, token), 60);
       return;
     }
 
-    let ctx = null;
     const stageRect = dom.tableStage.getBoundingClientRect();
     const tableRect = dom.tableOuter.getBoundingClientRect();
     const W = Math.max(320, stageRect.width);
     const H = Math.max(240, stageRect.height);
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    dom.coinCanvas.width = Math.round(W * dpr);
-    dom.coinCanvas.height = Math.round(H * dpr);
-    dom.coinCanvas.style.width = W + 'px';
-    dom.coinCanvas.style.height = H + 'px';
-    dom.coinCanvas.classList.add('is-active');
-    dom.game.classList.add('is-coining');
-    try { ctx = dom.coinCanvas.getContext('2d'); } catch (err) { ctx = null; }
-    if (!ctx) {
-      S.coinTimer = setTimeout(() => finishCoin(result, token), 1400);
-      return;
-    }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const tableX = tableRect.left + tableRect.width / 2 - stageRect.left;
     const tableY = tableRect.top + tableRect.height / 2 - stageRect.top;
-    const radius = Math.max(54, Math.min(92, tableRect.width * 0.105, tableRect.height * 0.17));
-    let y = tableY - Math.min(220, tableRect.height * 0.25);
-    let vy = -330;
-    let angle = 0;
-    let angVel = 15;
-    let settleAt = 0;
-    let target = 0;
-    let started = performance.now();
-    let last = started;
-    let done = false;
-
-    function drawFrame() {
-      ctx.clearRect(0, 0, W, H);
-      const height = Math.max(0, tableY - y);
-
-      const shadowAlpha = Math.max(0.08, 0.42 - height / 620);
-      const shadowScale = 0.72 + height / 560;
-      ctx.save();
-      ctx.globalAlpha = shadowAlpha;
-      ctx.filter = 'blur(6px)';
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.ellipse(tableX, tableY + 17, radius * shadowScale, 12 * shadowScale, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      const cos = Math.cos(angle);
-      const sy = Math.max(0.055, Math.abs(cos) * 0.78);
-      const face = cos >= 0 ? '先' : '后';
-
-      ctx.save();
-      ctx.translate(tableX, y);
-
-      if (Math.abs(cos) < 0.12) {
-        ctx.fillStyle = 'rgba(70, 42, 8, 0.9)';
-        ctx.beginPath();
-        ctx.ellipse(0, 8, radius * 1.04, 9, 0, 0, Math.PI * 2);
-        ctx.fill();
-        const edge = ctx.createLinearGradient(-radius, 0, radius, 0);
-        edge.addColorStop(0, '#7a511e');
-        edge.addColorStop(0.22, '#d9ad66');
-        edge.addColorStop(0.5, '#f4dc9f');
-        edge.addColorStop(0.78, '#c49349');
-        edge.addColorStop(1, '#6f4818');
-        ctx.fillStyle = edge;
-        ctx.beginPath();
-        if (typeof ctx.roundRect === 'function') ctx.roundRect(-radius, -11, radius * 2, 22, 10);
-        else ctx.rect(-radius, -11, radius * 2, 22);
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(86, 52, 12, 0.45)';
-        ctx.lineWidth = 1;
-        for (let i = -70; i <= 70; i += 7) {
-          ctx.beginPath();
-          ctx.moveTo(i, -10);
-          ctx.lineTo(i + 2, 10);
-          ctx.stroke();
-        }
-        ctx.restore();
-        return;
-      }
-
-      ctx.scale(1, sy);
-      ctx.fillStyle = 'rgba(91, 56, 16, 0.55)';
-      ctx.beginPath();
-      ctx.ellipse(0, 9, radius, radius, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      const metal = ctx.createRadialGradient(-radius * 0.32, -radius * 0.38, 4, 0, 0, radius * 1.12);
-      metal.addColorStop(0, '#fff1c4');
-      metal.addColorStop(0.24, '#f3d28f');
-      metal.addColorStop(0.55, '#cf9c52');
-      metal.addColorStop(0.82, '#9a6a2b');
-      metal.addColorStop(1, '#6a4518');
-      ctx.fillStyle = metal;
-      ctx.beginPath();
-      ctx.arc(0, 0, radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = 'rgba(255, 236, 175, 0.8)';
-      ctx.lineWidth = 2.4;
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(91, 56, 16, 0.42)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(0, 0, radius - 9, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, radius - 15, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(0, 0, radius - 12, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.fillStyle = 'rgba(70, 40, 7, 0.86)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '700 ' + Math.round(radius * 0.88) + 'px "Noto Serif SC", "Songti SC", "SimSun", serif';
-      ctx.fillText(face, 0, 4);
-      ctx.font = '600 ' + Math.max(6, Math.round(radius * 0.085)) + 'px "Noto Serif SC", serif';
-      ctx.fillStyle = 'rgba(72, 42, 8, 0.6)';
-      ctx.fillText(face === '先' ? 'FIRST' : 'SECOND', 0, radius * 0.65);
-      ctx.restore();
-
-      ctx.strokeStyle = 'rgba(255, 248, 215, 0.32)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(0, 0, radius - 24, -2.4, -0.9);
-      ctx.stroke();
-
-      ctx.restore();
-    }
-
-    function tick(now) {
-      if (token !== S.coinToken || done) return;
-      const dt = Math.min(0.032, Math.max(0.001, (now - last) / 1000));
-      last = now;
-
-      if (!settleAt) {
-        vy += 1020 * dt;
-        y += vy * dt;
-        angle += angVel * dt;
-        if (y >= tableY) {
-          y = tableY;
-          vy = -vy * 0.33;
-          angVel *= 0.55;
-          if (now - started > 1450 && Math.abs(vy) < 55) {
-            const base = result === '后' ? Math.PI : 0;
-            target = base + Math.round((angle - base) / (Math.PI * 2)) * Math.PI * 2;
-            settleAt = now;
-          }
-        }
-        if (now - started > 2350) {
-          const base = result === '后' ? Math.PI : 0;
-          target = base + Math.round((angle - base) / (Math.PI * 2)) * Math.PI * 2;
-          settleAt = now;
-        }
-      } else {
-        const p = Math.min(1, (now - settleAt) / 520);
-        const ease = 1 - Math.pow(1 - p, 3);
-        y += (tableY - y) * Math.min(1, ease * 0.35);
-        angle += (target - angle) * Math.min(1, ease * 0.35);
-        if (p >= 1) {
-          y = tableY;
-          angle = target;
-          done = true;
-          drawFrame();
-          dom.tableStatus.textContent = '硬币落定';
-          S.coinTimer = setTimeout(() => finishCoin(result, token), 460);
-          return;
-        }
-      }
-      drawFrame();
-      S.coinRaf = requestAnimationFrame(tick);
-    }
-
-    S.coinRaf = requestAnimationFrame(tick);
+    const radius = Math.max(48, Math.min(100, tableRect.width * 0.105, tableRect.height * 0.17));
+    dom.coinCanvas.classList.add('is-active');
+    dom.game.classList.add('is-coining');
+    S.coinAnim = window.Anim3D.coin(dom.coinCanvas, {
+      width: W,
+      height: H,
+      dpr: dpr,
+      tableX: tableX,
+      tableY: tableY,
+      radius: radius,
+      result: result,
+      onDone: () => finishCoin(result, token)
+    });
   }
 
   function finishCoin(result, token) {
     if (token !== S.coinToken) return;
     S.coinTimer = null;
+    S.coinAnim = null;
     dom.coinCanvas.classList.remove('is-active');
     dom.game.classList.remove('is-coining');
     if (S.mode === 'tutorial') tutorialAiFirst();
@@ -995,10 +850,42 @@
     const token = S.turnToken;
     const forced = options && options.forcedDice ? options.forcedDice.slice() : null;
     const finalDice = (forced || Array.from({ length: 5 }, () => randomDie())).sort((a, b) => a - b);
-    renderRollingTable(finalDice);
-    later(940, () => {
-      if (S.turnToken !== token) return;
-      afterRoll(finalDice, token);
+
+    if (TEST_MODE || !window.Anim3D || !dom.diceCanvas) {
+      renderTableDice(finalDice);
+      later(60, () => {
+        if (S.turnToken !== token) return;
+        afterRoll(finalDice, token);
+      });
+      return;
+    }
+
+    if (S.diceAnim) S.diceAnim.cancel();
+    const stageRect = dom.tableStage.getBoundingClientRect();
+    const diceRect = dom.tableDice.getBoundingClientRect();
+    const tableRect = dom.tableOuter.getBoundingClientRect();
+    const W = Math.max(320, stageRect.width);
+    const H = Math.max(240, stageRect.height);
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const tableX = (diceRect.width ? diceRect.left + diceRect.width / 2 : tableRect.left + tableRect.width / 2) - stageRect.left;
+    const tableY = (diceRect.height ? diceRect.top + diceRect.height / 2 : tableRect.top + tableRect.height / 2) - stageRect.top;
+    const radius = Math.max(64, Math.min(110, tableRect.width * 0.095));
+    dom.diceCanvas.classList.add('is-active');
+    dom.tableDice.style.visibility = 'hidden';
+    S.diceAnim = window.Anim3D.dice(dom.diceCanvas, {
+      width: W,
+      height: H,
+      dpr: dpr,
+      tableX: tableX,
+      tableY: tableY,
+      radius: radius,
+      values: finalDice,
+      onDone: () => {
+        dom.diceCanvas.classList.remove('is-active');
+        dom.tableDice.style.visibility = '';
+        S.diceAnim = null;
+        if (S.turnToken === token) afterRoll(finalDice, token);
+      }
     });
   }
 
@@ -1006,6 +893,10 @@
     if (S.turnToken !== token) return;
     if (S.diceRaf) cancelAnimationFrame(S.diceRaf);
     S.diceRaf = 0;
+    if (S.diceAnim) S.diceAnim.cancel();
+    S.diceAnim = null;
+    dom.diceCanvas.classList.remove('is-active');
+    dom.tableDice.style.visibility = '';
     if (S.rollInterval) { clearInterval(S.rollInterval); S.rollInterval = null; }
     S.dice = finalDice.slice().sort((a, b) => a - b);
     S.phase = 'rolled';
@@ -1759,6 +1650,14 @@
     renderTableDice(S.dice);
     dom.tableStatus.textContent = '三维骰子演示';
     updateHUD();
+    return;
+  }
+  if (PREVIEW === 'timer') {
+    S.mode = 'ai';
+    showScreen('game');
+    updateHUD();
+    renderTableDice([]);
+    startTimer(30, () => {});
     return;
   }
   showScreen('menu');
