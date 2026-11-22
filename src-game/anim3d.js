@@ -258,9 +258,9 @@
     let omega = v(8.6, 2.4, 4.2);
     let last = performance.now();
     let started = last;
-    let settleAt = 0;
     let targetQ = null;
-    let targetY = T / 2;
+    let guideAt = 0;
+    let restAt = 0;
     let raf = 0;
     let done = false;
     const GRAVITY = -13.5;
@@ -275,43 +275,53 @@
       if (done) return;
       const dt = Math.min(0.032, Math.max(0.001, (now - last) / 1000));
       last = now;
-      if (!settleAt) {
-        vel.y += GRAVITY * dt;
-        pos.y += vel.y * dt;
-        integrate(q, omega, dt);
-        omega.x *= (1 - 0.22 * dt);
-        omega.y *= (1 - 0.22 * dt);
-        omega.z *= (1 - 0.22 * dt);
-        const s = support(q);
-        if (pos.y < s) {
-          pos.y = s;
-          vel.y = -vel.y * 0.43;
-          omega = mul(omega, 0.62);
-          if (now - started > 1700 && Math.abs(vel.y) < 70) {
-            settleAt = now;
-            const base = result === '后' ? Math.PI / 2 : -Math.PI / 2;
-            targetQ = qMul(qAxis(v(0, 1, 0), 0.35), qAxis(v(1, 0, 0), base));
-          }
-        }
-        if (now - started > 2850) {
-          settleAt = now;
-          const base = result === '后' ? Math.PI / 2 : -Math.PI / 2;
-          targetQ = qMul(qAxis(v(0, 1, 0), 0.35), qAxis(v(1, 0, 0), base));
-        }
+
+      if (!targetQ && now - started > 1100) {
+        const base = result === '后' ? Math.PI / 2 : -Math.PI / 2;
+        targetQ = qMul(qAxis(v(0, 1, 0), 0.35), qAxis(v(1, 0, 0), base));
+        guideAt = now;
+      }
+
+      vel.y += GRAVITY * dt;
+      pos.y += vel.y * dt;
+
+      if (targetQ) {
+        const t = Math.min(1, (now - guideAt) / 1100);
+        const e = 1 - Math.pow(1 - t, 3);
+        q = qSlerp(q, targetQ, Math.min(1, 0.05 + e * 0.12));
+        omega = mul(omega, 0.9);
       } else {
-        const p = Math.min(1, (now - settleAt) / 620);
-        const e = 1 - Math.pow(1 - p, 3);
-        q = qSlerp(q, targetQ, Math.min(1, e * 0.45));
-        pos.y += (targetY - pos.y) * Math.min(1, e * 0.35);
-        if (p >= 1) {
-          q = targetQ;
-          pos.y = targetY;
-          done = true;
-          draw();
-          if (opts.onDone) opts.onDone();
-          return;
+        integrate(q, omega, dt);
+        omega = mul(omega, 1 - 0.22 * dt);
+      }
+
+      const s = support(q);
+      if (pos.y < s) {
+        pos.y = s;
+        if (Math.abs(vel.y) > 18) {
+          vel.y = -vel.y * 0.42;
+          omega = mul(omega, 0.6);
+        } else {
+          vel.y = 0;
         }
       }
+
+      const n = qRot(q, v(0, 0, 1));
+      const flat = Math.abs(n.y) > 0.992;
+      if (targetQ && flat && Math.abs(vel.y) < 2 && now - guideAt > 1100) {
+        if (!restAt) restAt = now;
+        if (now - restAt > 600) {
+          done = true;
+          pos.y = T / 2;
+          q = targetQ;
+          draw();
+          if (opts.onDone) opts.onDone(result);
+          return;
+        }
+      } else {
+        restAt = 0;
+      }
+
       draw();
       raf = requestAnimationFrame(tick);
     }
@@ -365,6 +375,23 @@
     ctx.restore();
   }
 
+  function roundedPath(ctx, corners, radius) {
+    const n = corners.length;
+    const rr = Math.max(1, Math.min(radius, len(sub(corners[0], corners[1])) * 0.45, len(sub(corners[1], corners[2])) * 0.45));
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const p = corners[i];
+      const prev = corners[(i + n - 1) % n];
+      const next = corners[(i + 1) % n];
+      const a = add(p, mul(norm(sub(prev, p)), rr));
+      const b = add(p, mul(norm(sub(next, p)), rr));
+      if (i === 0) ctx.moveTo(a.x, a.y);
+      else ctx.lineTo(a.x, a.y);
+      ctx.quadraticCurveTo(p.x, p.y, b.x, b.y);
+    }
+    ctx.closePath();
+  }
+
   function drawDie(ctx, cam, die, values) {
     const q = die.q;
     const pos = die.pos;
@@ -395,9 +422,7 @@
       const light = Math.max(0, dot(item.n, norm(v(-0.45, 0.8, 0.55))));
       const shade = 0.64 + light * 0.32;
       ctx.fillStyle = 'rgb(' + Math.round(242 * shade) + ',' + Math.round(232 * shade) + ',' + Math.round(205 * shade) + ')';
-      ctx.beginPath();
-      item.corners.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-      ctx.closePath();
+      roundedPath(ctx, item.corners, 7);
       ctx.fill();
       ctx.strokeStyle = 'rgba(108, 84, 49, 0.36)';
       ctx.lineWidth = 1.1;
@@ -408,9 +433,7 @@
         return cam.project(add(center, add(mul(item.u, (i === 0 || i === 3 ? 1 : -1) * S * s), mul(item.vv, (i < 2 ? 1 : -1) * S * s))));
       });
       ctx.fillStyle = 'rgba(255, 251, 235, 0.18)';
-      ctx.beginPath();
-      inset.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-      ctx.closePath();
+      roundedPath(ctx, inset, 5);
       ctx.fill();
       ctx.strokeStyle = 'rgba(115, 88, 50, 0.2)';
       ctx.lineWidth = 0.8;
@@ -452,23 +475,24 @@
       return { cancel: function () {} };
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const S = 0.38;
+    const S = 0.3;
     const cam = makeCamera(opts.tableX, opts.tableY, opts.radius, 0.9);
     const values = (opts.values || [1, 2, 3, 4, 5]).slice(0, 5);
     const diceState = values.map((value, i) => ({
       index: i,
       S: S,
-      pos: v((i - 2) * 1.05, 3.2 + i * 0.14, (i % 2 ? -0.22 : 0.18)),
-      vel: v((i - 2) * 0.18, 1.2 + (i % 3) * 0.25, (i % 2 ? -0.12 : 0.1)),
+      pos: v((i - 2) * 0.84, 3.2 + i * 0.14, (i % 2 ? -0.16 : 0.14)),
+      vel: v((i - 2) * 0.14, 1.2 + (i % 3) * 0.25, (i % 2 ? -0.1 : 0.08)),
       q: qNorm(qAxis(norm(v(0.7 + i * 0.11, 1, 0.35 + i * 0.09)), 0.5 + i * 0.14)),
       omega: v(4.8 + i * 0.42, 3.1 + i * 0.35, 3.9 + i * 0.27),
       targetQ: qNorm(qAxis(v(0, 1, 0), 0.18 + i * 0.16)),
-      targetX: (i - 2) * 1.05,
+      targetX: (i - 2) * 0.84,
       targetZ: 0
     }));
     let last = performance.now();
     let started = last;
     let settleAt = 0;
+    let restAt = 0;
     let raf = 0;
     let done = false;
     const GRAVITY = -15;
@@ -522,11 +546,11 @@
             }
           }
         }
-        if (now - started > 2850) {
+        if (now - started > 2200) {
           settleAt = now;
         }
       } else {
-        const p = Math.min(1, (now - settleAt) / 620);
+        const p = Math.min(1, (now - settleAt) / 850);
         const e = 1 - Math.pow(1 - p, 3);
         for (const d of diceState) {
           d.q = qSlerp(d.q, d.targetQ, Math.min(1, e * 0.4));
@@ -536,10 +560,13 @@
           if (p >= 1) { d.q = d.targetQ; d.pos = v(d.targetX, S, d.targetZ); }
         }
         if (p >= 1) {
-          done = true;
-          draw();
-          if (opts.onDone) opts.onDone();
-          return;
+          if (!restAt) restAt = now;
+          if (now - restAt > 450) {
+            done = true;
+            draw();
+            if (opts.onDone) opts.onDone();
+            return;
+          }
         }
       }
       draw();

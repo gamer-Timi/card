@@ -794,7 +794,7 @@
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const tableX = tableRect.left + tableRect.width / 2 - stageRect.left;
     const tableY = tableRect.top + tableRect.height / 2 - stageRect.top;
-    const radius = Math.max(48, Math.min(100, tableRect.width * 0.105, tableRect.height * 0.17));
+    const radius = Math.max(40, Math.min(76, tableRect.width * 0.08, tableRect.height * 0.13));
     dom.coinCanvas.classList.add('is-active');
     dom.game.classList.add('is-coining');
     S.coinAnim = window.Anim3D.coin(dom.coinCanvas, {
@@ -869,7 +869,7 @@
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const tableX = (diceRect.width ? diceRect.left + diceRect.width / 2 : tableRect.left + tableRect.width / 2) - stageRect.left;
     const tableY = (diceRect.height ? diceRect.top + diceRect.height / 2 : tableRect.top + tableRect.height / 2) - stageRect.top;
-    const radius = Math.max(64, Math.min(110, tableRect.width * 0.095));
+    const radius = Math.max(44, Math.min(72, tableRect.width * 0.065));
     dom.diceCanvas.classList.add('is-active');
     dom.tableDice.style.visibility = 'hidden';
     S.diceAnim = window.Anim3D.dice(dom.diceCanvas, {
