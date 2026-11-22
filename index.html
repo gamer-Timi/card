@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#07100d">
 <title>先后 · 五骰计分</title>
 <style>
-﻿:root {
+:root {
   --ink: #e8e2d4;
   --muted: #8e978f;
   --gold: #d7b575;
@@ -1310,9 +1310,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   inset: 0;
   z-index: 50;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
+  padding: clamp(58px, 7vh, 86px) 20px 20px;
   background: rgba(2, 6, 4, 0.55);
   backdrop-filter: blur(2.5px);
   -webkit-backdrop-filter: blur(2.5px);
