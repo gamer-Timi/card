@@ -957,6 +957,16 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   animation: dieTumble 0.58s linear infinite;
 }
 
+.die.is-landed {
+  animation: dieLand 0.36s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes dieLand {
+  0% { transform: perspective(480px) translateY(-22px) rotateX(26deg) scale(0.92); opacity: 0.35; }
+  62% { transform: perspective(480px) translateY(3px) rotateX(4deg) scale(1.035); opacity: 1; }
+  100% { transform: perspective(480px) translateY(0) rotateX(0) scale(1); opacity: 1; }
+}
+
 @keyframes dieTumble {
   0% { transform: perspective(480px) rotateX(8deg) rotateY(-6deg) translateY(0); }
   25% { transform: perspective(480px) rotateX(55deg) rotateY(20deg) translateY(-12px); }
@@ -1173,72 +1183,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .overlay.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
 .overlay--match { z-index: 80; background: rgba(2, 6, 4, 0.78); }
-.overlay--coin { z-index: 80; background: rgba(2, 6, 4, 0.2); padding: 0; overflow: hidden; }
-.overlay--dice-cinema { z-index: 54; background: transparent; padding: 0; backdrop-filter: none; -webkit-backdrop-filter: none; }
-.dice-cinema-frame {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: transparent;
-  pointer-events: none;
-}
-.dice-cinema-caption {
-  position: absolute;
-  left: 50%;
-  top: 12%;
-  z-index: 2;
-  transform: translateX(-50%);
-  text-align: center;
-  pointer-events: none;
-  opacity: 0.75;
-}
-.dice-cinema-caption .eyebrow { color: rgba(215, 181, 117, 0.55); }
-.dice-cinema-caption span {
-  display: block;
-  margin-top: 5px;
-  color: rgba(226, 218, 200, 0.38);
-  font-size: 9px;
-  letter-spacing: 0.2em;
-}
-
-.coin-frame {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: #05080c;
-  pointer-events: none;
-}
-
-.coin-overlay-caption {
-  position: absolute;
-  z-index: 2;
-  top: clamp(28px, 7vh, 78px);
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  pointer-events: none;
-  text-shadow: 0 4px 24px #000;
-}
-
-.coin-overlay-caption h2 {
-  margin: 8px 0 5px;
-  font-family: var(--serif);
-  font-size: clamp(24px, 3vw, 36px);
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  color: rgba(245, 236, 216, 0.93);
-}
-
-.coin-overlay-caption p:not(.eyebrow) {
-  margin: 0;
-  color: rgba(226, 217, 200, 0.4);
-  font-size: 9px;
-  letter-spacing: 0.16em;
-}
+.overlay--coin { z-index: 80; background: rgba(2, 6, 4, 0.66); }
 .overlay--dice { z-index: 55; background: rgba(2, 5, 4, 0.64); }
 .overlay--paper { z-index: 60; background: rgba(2, 5, 4, 0.52); }
 .overlay--rule { z-index: 70; background: rgba(0, 0, 0, 0.48); }
@@ -1424,7 +1369,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 .coin-perspective {
-  height: 210px;
+  height: 238px;
   margin: 10px 0 0;
   display: grid;
   place-items: center;
@@ -1433,8 +1378,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .coin3d {
   position: relative;
-  width: 136px;
-  height: 136px;
+  width: 164px;
+  height: 164px;
   transform-style: preserve-3d;
   transform: rotateY(0deg) rotateX(9deg);
   transition: transform 2.1s cubic-bezier(0.18, 0.78, 0.18, 1);
@@ -1469,7 +1414,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   box-shadow: inset 0 0 0 4px rgba(255, 236, 184, 0.09);
 }
 
-.coin-face span { position: relative; font-family: var(--serif); font-size: 54px; font-weight: 700; line-height: 1; }
+.coin-face span { position: relative; font-family: var(--serif); font-size: 66px; font-weight: 700; line-height: 1; }
 .coin-face em { position: relative; font-style: normal; font-size: 7px; font-weight: 650; letter-spacing: 0.24em; color: rgba(70, 40, 7, 0.5); }
 .coin-face--back { transform: rotateY(180deg); }
 
@@ -1907,6 +1852,6 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .menu-frame, .match-orbit i, .die.is-rolling, .particle, .coin3d { animation: none !important; }
+  .menu-frame, .match-orbit i, .die.is-rolling, .die.is-landed, .particle, .coin3d { animation: none !important; }
   .coin3d { transition: none !important; }
 }

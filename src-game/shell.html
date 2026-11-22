@@ -211,20 +211,18 @@
 
   <!-- ============================== COIN ============================== -->
   <div class="overlay overlay--coin" id="coinOverlay" aria-hidden="true">
-    <iframe class="coin-frame" id="coinFrame" title="投币动画"></iframe>
-    <div class="coin-overlay-caption">
+    <div class="coin-card">
       <p class="eyebrow">COIN TOSS</p>
       <h2>投币决定先后</h2>
-      <p>硬币落定后自动继续</p>
-    </div>
-  </div>
-
-  <!-- ============================== DICE CINEMA ============================== -->
-  <div class="overlay overlay--dice-cinema" id="diceCinema" aria-hidden="true">
-    <iframe class="dice-cinema-frame" id="diceCinemaFrame" title="三维骰子投掷动画"></iframe>
-    <div class="dice-cinema-caption">
-      <p class="eyebrow">ROLL</p>
-      <span>骰子投掷中</span>
+      <div class="coin-perspective">
+        <div class="coin3d" id="coin3d">
+          <div class="coin-face coin-face--front"><span>先</span><em>FIRST</em></div>
+          <div class="coin-face coin-face--back"><span>后</span><em>SECOND</em></div>
+          <div class="coin-edge"></div>
+        </div>
+      </div>
+      <p class="coin-result" id="coinTitle">硬币翻转中…</p>
+      <p class="coin-sub" id="coinSub">硬币落定后自动继续</p>
     </div>
   </div>
 

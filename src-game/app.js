@@ -65,15 +65,7 @@
     },
     matchToken: 0,
     coinToken: 0,
-    coinPending: false,
-    coinForced: null,
-    coinFallback: null,
-    coinPoll: null,
-    coinResult: null,
-    diceCinemaPending: false,
-    diceCinemaToken: 0,
-    diceCinemaFallback: null,
-    diceCinemaPoll: null,
+    coinTimer: null,
     viewPaperPlayer: null
   };
 
@@ -113,9 +105,9 @@
     matchSteps: $$('.match-steps span'),
     btnMatchCancel: $('btnMatchCancel'),
     coinOverlay: $('coinOverlay'),
-    coinFrame: $('coinFrame'),
-    diceCinema: $('diceCinema'),
-    diceCinemaFrame: $('diceCinemaFrame'),
+    coin3d: $('coin3d'),
+    coinTitle: $('coinTitle'),
+    coinSub: $('coinSub'),
     diceOverlay: $('diceOverlay'),
     diceEyebrow: $('diceEyebrow'),
     diceTitle: $('diceTitle'),
@@ -258,7 +250,7 @@
   }
 
   function closeAllOverlays() {
-    [dom.matchOverlay, dom.coinOverlay, dom.diceCinema, dom.diceOverlay, dom.paperOverlay, dom.rulePop, dom.jumpOverlay, dom.resultOverlay]
+    [dom.matchOverlay, dom.coinOverlay, dom.diceOverlay, dom.paperOverlay, dom.rulePop, dom.jumpOverlay, dom.resultOverlay]
       .forEach(closeOverlay);
   }
 
@@ -449,6 +441,7 @@
     dom.tableDice.innerHTML = '';
     for (let i = 0; i < 5; i++) {
       const die = createDie(randomDie(), 'is-rolling');
+      die.style.animationDelay = (-i * 0.09) + 's';
       dom.tableDice.appendChild(die);
     }
   }
@@ -578,21 +571,11 @@
     clearLater();
     S.gameToken++;
     S.coinToken++;
-    S.coinPending = false;
-    if (S.coinFallback) clearTimeout(S.coinFallback);
-    if (S.coinPoll) clearInterval(S.coinPoll);
-    S.coinFallback = null;
-    S.coinPoll = null;
+    if (S.coinTimer) clearTimeout(S.coinTimer);
+    S.coinTimer = null;
     S.phase = 'idle';
     S.tutorialStage = 'off';
     setTutorial('');
-    S.diceCinemaPending = false;
-    if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
-    if (S.diceCinemaPoll) clearInterval(S.diceCinemaPoll);
-    S.diceCinemaFallback = null;
-    S.diceCinemaPoll = null;
-    if (dom.coinFrame) dom.coinFrame.src = 'about:blank';
-    if (dom.diceCinemaFrame) dom.diceCinemaFrame.src = 'about:blank';
     closeAllOverlays();
     showScreen('menu');
   }
@@ -619,17 +602,9 @@
     S.scoreAllowed = null;
     S.tutorialStage = mode === 'tutorial' ? 'coin' : 'off';
     S.tutorialOnes = 0;
-    S.coinPending = false;
-    S.diceCinemaPending = false;
-    if (S.coinFallback) clearTimeout(S.coinFallback);
-    if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
-    if (S.coinPoll) clearInterval(S.coinPoll);
-    if (S.diceCinemaPoll) clearInterval(S.diceCinemaPoll);
-    S.coinFallback = null;
-    S.diceCinemaFallback = null;
-    S.coinPoll = null;
-    S.diceCinemaPoll = null;
-    if (dom.diceCinemaFrame) dom.diceCinemaFrame.src = 'about:blank';
+    S.coinToken++;
+    if (S.coinTimer) clearTimeout(S.coinTimer);
+    S.coinTimer = null;
     initPlayers();
     S.timer.active = false;
     dom.diceOverlay.classList.remove('is-open');
@@ -644,55 +619,43 @@
 
   function startCoin(forcedResult) {
     const token = ++S.coinToken;
-    S.coinPending = true;
-    S.coinForced = forcedResult || null;
-    S.coinResult = null;
-    if (S.coinFallback) clearTimeout(S.coinFallback);
-    if (S.coinPoll) clearInterval(S.coinPoll);
-    S.coinPoll = null;
+    if (S.coinTimer) clearTimeout(S.coinTimer);
+    S.coinTimer = null;
+    const result = forcedResult || (cryptoRandom() < 0.5 ? '先' : '后');
+
     if (TEST_MODE) {
-      setTimeout(() => {
-        if (token === S.coinToken) resolveCoin(forcedResult || (cryptoRandom() < 0.5 ? '先' : '后'), token);
-      }, 60);
+      S.coinTimer = setTimeout(() => finishCoin(result, token), 60);
       return;
     }
-    const faceParam = forcedResult ? '&face=' + (forcedResult === '先' ? 'heads' : 'tails') : '';
-    dom.coinFrame.src = 'coin.html?embed=1' + faceParam + '&t=' + Date.now();
+
+    dom.coinTitle.textContent = '硬币翻转中…';
+    dom.coinSub.textContent = '硬币落定后自动继续';
+    dom.coin3d.style.transition = 'none';
+    dom.coin3d.classList.remove('is-flipping');
+    dom.coin3d.style.transform = 'rotateY(0deg) rotateX(9deg)';
     openOverlay(dom.coinOverlay);
+    void dom.coin3d.offsetWidth;
 
-    S.coinPoll = setInterval(() => {
-      if (!S.coinPending) return;
-      try {
-        const api = dom.coinFrame.contentWindow && dom.coinFrame.contentWindow.__coin;
-        if (!api) return;
-        const snap = api.snapshot();
-        if (snap && snap.phase === 'settled' && snap.final) {
-          resolveCoin(snap.final.face === 'heads' ? '先' : '后', token);
-        }
-      } catch (err) { /* cross-origin file mode: wait for postMessage / fallback */ }
-    }, 240);
+    dom.coin3d.style.transition = 'transform 2.1s cubic-bezier(0.18, 0.78, 0.18, 1)';
+    dom.coin3d.classList.add('is-flipping');
+    const finalDeg = 1800 + (result === '后' ? 180 : 0);
+    dom.coin3d.style.transform = 'rotateY(' + finalDeg + 'deg) rotateX(9deg)';
 
-    S.coinFallback = setTimeout(() => {
-      if (token !== S.coinToken || !S.coinPending) return;
-      showToast('投币动画未响应，已使用备用结果', 1800);
-      resolveCoin(forcedResult || (cryptoRandom() < 0.5 ? '先' : '后'), token);
-    }, 10000);
+    S.coinTimer = setTimeout(() => {
+      if (token !== S.coinToken) return;
+      dom.coin3d.classList.remove('is-flipping');
+      dom.coinTitle.textContent = '硬币落定';
+      dom.coinSub.textContent = '';
+      S.coinTimer = setTimeout(() => finishCoin(result, token), 700);
+    }, 2150);
   }
 
-  function resolveCoin(result, token) {
-    if (token !== S.coinToken || !S.coinPending) return;
-    S.coinPending = false;
-    if (S.coinFallback) clearTimeout(S.coinFallback);
-    if (S.coinPoll) clearInterval(S.coinPoll);
-    S.coinFallback = null;
-    S.coinPoll = null;
-    S.coinResult = result;
-    setTimeout(() => {
-      if (token !== S.coinToken) return;
-      closeOverlay(dom.coinOverlay);
-      if (S.mode === 'tutorial') tutorialAiFirst();
-      else beginTurn(result === '先' ? 0 : 1);
-    }, 480);
+  function finishCoin(result, token) {
+    if (token !== S.coinToken) return;
+    S.coinTimer = null;
+    closeOverlay(dom.coinOverlay);
+    if (S.mode === 'tutorial') tutorialAiFirst();
+    else beginTurn(result === '先' ? 0 : 1);
   }
 
   function beginTurn(active, options = {}) {
@@ -725,22 +688,7 @@
     const token = S.turnToken;
     const forced = options && options.forcedDice ? options.forcedDice.slice() : null;
 
-    if (S.mode !== 'tutorial' && !forced && !TEST_MODE) {
-      if (S.rollInterval) { clearInterval(S.rollInterval); S.rollInterval = null; }
-      dom.tableDice.innerHTML = '';
-      startDiceCinema(token);
-      return;
-    }
-
     renderRollingTable();
-    if (S.rollInterval) clearInterval(S.rollInterval);
-    let ticks = 0;
-    S.rollInterval = setInterval(() => {
-      ticks++;
-      if (ticks > 10) return;
-      renderRollingTable();
-    }, 82);
-
     const finalDice = (forced || Array.from({ length: 5 }, () => randomDie())).sort((a, b) => a - b);
     later(940, () => {
       if (S.turnToken !== token) return;
@@ -754,6 +702,10 @@
     S.dice = finalDice.slice().sort((a, b) => a - b);
     S.phase = 'rolled';
     renderTableDice(S.dice);
+    dom.tableDice.querySelectorAll('.die').forEach((die, i) => {
+      die.classList.add('is-landed');
+      die.style.animationDelay = (i * 0.035) + 's';
+    });
     dom.tableStatus.textContent = '已投出 · 等待固定';
     updateHUD();
     if (S.active === 0) {
@@ -762,49 +714,6 @@
       dom.tableStatus.textContent = '对方正在选择固定骰子…';
       later(820, () => { if (S.turnToken === token) aiFix(); });
     }
-  }
-
-  function startDiceCinema(turnToken) {
-    const token = ++S.diceCinemaToken;
-    S.diceCinemaPending = true;
-    if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
-    if (S.diceCinemaPoll) clearInterval(S.diceCinemaPoll);
-    dom.diceCinemaFrame.src = 'dice.html?embed=1&t=' + Date.now();
-    openOverlay(dom.diceCinema);
-
-    S.diceCinemaPoll = setInterval(() => {
-      if (!S.diceCinemaPending) return;
-      try {
-        const api = dom.diceCinemaFrame.contentWindow && dom.diceCinemaFrame.contentWindow.__dice;
-        if (!api) return;
-        const snap = api.snapshot();
-        if (snap && snap.phase === 'settled' && snap.values) {
-          finishDiceCinema(snap.values, turnToken);
-        }
-      } catch (err) { /* cross-origin file mode: wait for postMessage / fallback */ }
-    }, 240);
-
-    S.diceCinemaFallback = setTimeout(() => {
-      if (!S.diceCinemaPending || token !== S.diceCinemaToken) return;
-      showToast('骰子动画未响应，已使用备用骰面', 1600);
-      finishDiceCinema(Array.from({ length: 5 }, () => randomDie()), turnToken);
-    }, 10000);
-  }
-
-  function finishDiceCinema(values, turnToken) {
-    if (!S.diceCinemaPending) return;
-    S.diceCinemaPending = false;
-    if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
-    if (S.diceCinemaPoll) clearInterval(S.diceCinemaPoll);
-    S.diceCinemaFallback = null;
-    S.diceCinemaPoll = null;
-    closeOverlay(dom.diceCinema);
-    dom.diceCinemaFrame.src = 'about:blank';
-    const clean = (values || []).map(v => Number(v)).filter(v => v >= 1 && v <= 6);
-    if (clean.length !== 5) {
-      for (let i = clean.length; i < 5; i++) clean.push(1 + Math.floor(cryptoRandom() * 6));
-    }
-    afterRoll(clean.slice(0, 5), turnToken);
   }
 
   function fixRuleForStage() {
@@ -1333,18 +1242,6 @@
     goMenu();
   });
 
-  window.addEventListener('message', event => {
-    const data = event.data;
-    if (!data || typeof data !== 'object') return;
-    if (data.type === 'coin-toss-result') {
-      resolveCoin(data.face === 'heads' ? '先' : '后', S.coinToken);
-      return;
-    }
-    if (data.type === 'dice-roll-result') {
-      finishDiceCinema(data.values, S.turnToken);
-    }
-  });
-
   dom.diceConfirm.addEventListener('click', () => {
     if (S.phase === 'fix') submitFix(false);
     else if (S.phase === 'adjust') submitAdjust(false);
@@ -1416,8 +1313,6 @@
     state: S,
     startAI() { startGame('ai'); },
     startTutorial,
-    forceCoin(result) { resolveCoin(result === '先' ? '先' : '后', S.coinToken); },
-    forceDice(values) { finishDiceCinema(values, S.turnToken); },
     snapshot() {
       return {
         screen: S.screen,
