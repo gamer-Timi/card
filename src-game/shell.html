@@ -201,7 +201,7 @@
       <h2 id="matchTitle">匹配中</h2>
       <p class="match-sub" id="matchSub">正在寻找空闲牌桌…</p>
       <div class="match-steps"><span class="is-on"></span><span></span><span></span></div>
-      <p class="match-note">真人匹配需要另一名玩家同时在线；没有真人时会转入人机练习。</p>
+      <p class="match-note">真人匹配需要另一名玩家同时在线；没有真人会继续等待，也可以直接选择人机练习。</p>
       <div class="match-actions">
         <button class="primary-btn" id="btnMatchPractice" type="button">直接人机练习</button>
         <button class="ghost-btn" id="btnMatchCancel" type="button">取消</button>
@@ -215,11 +215,7 @@
       <p class="eyebrow">COIN TOSS</p>
       <h2>投币决定先后</h2>
       <div class="coin-perspective">
-        <div class="coin3d" id="coin3d">
-          <div class="coin-face coin-face--front"><span>先</span><em>FIRST</em></div>
-          <div class="coin-face coin-face--back"><span>后</span><em>SECOND</em></div>
-          <div class="coin-edge"></div>
-        </div>
+        <canvas class="coin-canvas" id="coinCanvas" width="320" height="280" aria-label="投币动画"></canvas>
       </div>
       <p class="coin-result" id="coinTitle">硬币翻转中…</p>
       <p class="coin-sub" id="coinSub">硬币落定后自动继续</p>

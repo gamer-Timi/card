@@ -676,6 +676,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   stroke-width: 2.1;
   stroke-linecap: round;
   transform: rotate(-90deg);
+  transform-box: view-box;
   transform-origin: 60px 60px;
   stroke-dasharray: 320.44;
   stroke-dashoffset: 320.44;
@@ -684,7 +685,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .clock-arc.is-urgent { stroke: #d45a4e; }
 
-.clock-hand { transform-origin: 60px 60px; transition: transform 0.12s linear; }
+.clock-hand { transform-box: view-box; transform-origin: 60px 60px; transition: transform 0.12s linear; }
 .clock-hand line { stroke: rgba(241, 217, 167, 0.88); stroke-width: 1.6; stroke-linecap: round; }
 .clock-hand circle { fill: #e8c987; }
 
@@ -1104,8 +1105,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 .die-arrow {
-  position: absolute;
-  top: 50%;
+  position: static;
   width: 23px;
   height: 23px;
   display: grid;
@@ -1117,16 +1117,40 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
-  transform: translateY(-50%);
+  transform: none;
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   z-index: 2;
 }
 
-.die-arrow:hover { background: rgba(44, 60, 40, 0.9); border-color: rgba(244, 214, 154, 0.7); transform: translateY(-50%) scale(1.08); }
-.die-arrow--left { left: -31px; }
-.die-arrow--right { right: -31px; }
+.die-arrow:hover { background: rgba(44, 60, 40, 0.9); border-color: rgba(244, 214, 154, 0.7); transform: scale(1.08); }
 
-.die-slot--adjust { padding: 0 31px; }
+.die-slot--adjust {
+  display: grid;
+  grid-template-columns: 23px auto 23px;
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-items: center;
+  gap: 4px 5px;
+  padding: 0;
+}
+
+.die-slot--adjust .die { grid-column: 2; grid-row: 1; }
+.die-slot--adjust .die-arrow--left { grid-column: 1; grid-row: 1; }
+.die-slot--adjust .die-arrow--right { grid-column: 3; grid-row: 1; }
+.die-slot--adjust .die-owner { grid-column: 1 / -1; grid-row: 2; }
+
+.die.is-value-flipping-left { animation: dieFlipLeft 0.34s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.die.is-value-flipping-right { animation: dieFlipRight 0.34s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+@keyframes dieFlipLeft {
+  0% { transform: perspective(480px) rotateX(11deg) rotateY(68deg) scale(0.92); opacity: 0.3; }
+  100% { transform: perspective(480px) rotateX(11deg) rotateY(-4deg) scale(1); opacity: 1; }
+}
+
+@keyframes dieFlipRight {
+  0% { transform: perspective(480px) rotateX(11deg) rotateY(-78deg) scale(0.92); opacity: 0.3; }
+  100% { transform: perspective(480px) rotateX(11deg) rotateY(-4deg) scale(1); opacity: 1; }
+}
 
 /* ============================== turn banner / toast ============================== */
 .turn-banner {
@@ -1449,7 +1473,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .coin-perspective {
   position: relative;
-  height: 238px;
+  height: 266px;
   margin: 10px 0 0;
   display: grid;
   place-items: center;
@@ -1468,6 +1492,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 68%);
   filter: blur(4px);
   pointer-events: none;
+}
+
+.coin-canvas {
+  width: 300px;
+  max-width: 78vw;
+  height: 260px;
+  display: block;
 }
 
 .coin3d {
@@ -1551,13 +1582,10 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   box-shadow: 0 35px 100px rgba(0, 0, 0, 0.56), inset 0 1px 0 rgba(255, 245, 222, 0.06);
 }
 
-.dice-row--large { min-height: 118px; gap: 18px; padding: 23px 10px 8px; }
+.dice-row--large { min-height: 118px; gap: 18px; padding: 23px 10px 8px; flex-wrap: wrap; row-gap: 8px; }
 .dice-row--large .die { width: 72px; height: 72px; padding: 10px; border-radius: 15px; }
 .dice-row--large .die.is-selected { transform: perspective(480px) rotateX(6deg) rotateY(-2deg) translateY(-17px) scale(1.06); }
 .dice-row--large .die.is-hidden::before { font-size: 31px; }
-.dice-slot--adjust { padding: 0 26px; }
-.die-arrow--left { left: -27px; }
-.die-arrow--right { right: -27px; }
 
 .dice-meta {
   display: flex;
@@ -1909,11 +1937,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
   .dice-modal { padding: 20px 12px 16px; border-radius: 14px; }
   .dice-row--large { gap: 6px; padding: 19px 0 6px; min-height: 96px; }
-  .dice-row--large .die { width: 42px; height: 42px; padding: 6px; border-radius: 10px; }
-  .dice-row--large .die-slot--adjust { padding: 0 12px; }
-  .dice-row--large .die-arrow { width: 16px; height: 16px; font-size: 11px; }
-  .die-arrow--left { left: -15px; }
-  .die-arrow--right { right: -15px; }
+  .dice-row--large .die { width: 36px; height: 36px; padding: 5px; border-radius: 9px; }
+  .dice-row--large .die-slot--adjust { grid-template-columns: 14px auto 14px; gap: 3px; padding: 0; }
+  .dice-row--large .die-arrow { width: 14px; height: 14px; font-size: 10px; }
   .modal-head h2 { font-size: 20px; }
   .modal-hint { font-size: 10px; margin: 10px 0 8px; }
   .dice-meta { font-size: 8px; gap: 8px; flex-wrap: wrap; margin-top: 7px; }

@@ -7,6 +7,18 @@
   const TEST_MODE = new URLSearchParams(location.search).get('test') === '1';
   const PREVIEW = new URLSearchParams(location.search).get('preview') ||
     (location.hash.startsWith('#preview=') ? location.hash.slice(9) : null);
+  const CLIENT_ID = (() => {
+    try {
+      let id = localStorage.getItem('timicard_client_id');
+      if (!id) {
+        id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        localStorage.setItem('timicard_client_id', id);
+      }
+      return id;
+    } catch (err) {
+      return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    }
+  })();
   const CATS = E.CATEGORIES;
   const CAT_BY_KEY = E.CATEGORY_BY_KEY;
 
@@ -66,8 +78,14 @@
       token: 0
     },
     matchToken: 0,
+    roomId: null,
+    roomHost: false,
+    roomPoll: null,
+    matchBusy: false,
     coinToken: 0,
     coinTimer: null,
+    coinRaf: 0,
+    diceRaf: 0,
     viewPaperPlayer: null
   };
 
@@ -107,7 +125,7 @@
     matchSteps: $$('.match-steps span'),
     btnMatchCancel: $('btnMatchCancel'),
     coinOverlay: $('coinOverlay'),
-    coin3d: $('coin3d'),
+    coinCanvas: $('coinCanvas'),
     coinTitle: $('coinTitle'),
     coinSub: $('coinSub'),
     diceOverlay: $('diceOverlay'),
@@ -176,6 +194,35 @@
     }
   }
 
+  function tagValue(response, tag) {
+    if (response == null) return null;
+    if (typeof response === 'string') return response;
+    if (response[tag] !== undefined) return response[tag];
+    if (response.value !== undefined) return response.value;
+    return null;
+  }
+
+  async function getRoom(tag) {
+    try {
+      const res = await tdb('get', { tag });
+      const raw = tagValue(res, tag);
+      return raw == null ? null : roomPayload(raw);
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async function listRoomTags() {
+    try {
+      const page = await tdb('search', { no: '1', count: '100', tag: 'timicard_room_', type: 'tag' });
+      if (page && Array.isArray(page.tag)) return page.tag;
+      if (page && page.data && Array.isArray(page.data.tag)) return page.data.tag;
+      return [];
+    } catch (err) {
+      return [];
+    }
+  }
+
   // Housekeeping for the room namespace described in 规则.txt. It only
   // removes rooms that have been untouched for a long time; active rooms and
   // rooms just created by another player are left alone.
@@ -188,29 +235,15 @@
 
     let removed = 0;
     try {
-      for (let no = 1; no <= 301; no += 100) {
-        const page = await tdb('search', {
-          no: String(no),
-          count: '100',
-          tag: 'timicard_room_',
-          type: 'tag'
-        });
-        let data = page;
-        if (page && page.data && typeof page.data === 'object') data = page.data;
-        if (!data || typeof data !== 'object') break;
-        const entries = Object.entries(data).filter(([k]) => k.startsWith('timicard_room_'));
-        if (!entries.length) break;
-        const now = Date.now();
-        for (const [tag, raw] of entries) {
-          let room = null;
-          try { room = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (err) { room = null; }
-          const updated = room && Number(room.updatedAt);
-          if (!updated) continue;
-          if (now - updated > 10 * 60 * 1000) {
-            try { await tdb('delete', { tag }); removed++; } catch (err) { /* ignore one bad room */ }
-          }
+      const tags = await listRoomTags();
+      const now = Date.now();
+      for (const tag of tags) {
+        const room = await getRoom(tag);
+        const updated = room && Number(room.updatedAt);
+        if (!updated) continue;
+        if (now - updated > 10 * 60 * 1000) {
+          try { await tdb('delete', { tag }); removed++; } catch (err) { /* ignore one bad room */ }
         }
-        if (entries.length < 100) break;
       }
     } catch (err) { /* network is optional */ }
     return removed;
@@ -478,15 +511,65 @@
     });
   }
 
-  function renderRollingTable() {
+  function renderRollingTable(dice) {
     dom.tableDice.innerHTML = '';
-    for (let i = 0; i < 5; i++) {
-      const die = createCubeDie(randomDie(), 'is-rolling');
-      die.style.animationDelay = (-i * 0.06) + 's';
+    const cubes = [];
+    (dice || Array.from({ length: 5 }, () => randomDie())).forEach((value, i) => {
+      const die = createCubeDie(value);
+      die.classList.add('is-physics');
       const cube = die.querySelector('.cube');
-      if (cube) cube.style.animationDelay = (-i * 0.12) + 's';
+      cubes.push({ die, cube, index: i });
       dom.tableDice.appendChild(die);
+    });
+    animateDiceCubes(cubes);
+  }
+
+  function animateDiceCubes(cubes) {
+    if (S.diceRaf) cancelAnimationFrame(S.diceRaf);
+    const started = performance.now();
+    let last = started;
+    const state = cubes.map((item, i) => ({
+      ...item,
+      y: -150 - i * 14,
+      vy: 40 + i * 12,
+      rx: 0,
+      ry: 0,
+      rz: 0,
+      vx: 300 + i * 45,
+      vyRot: 260 + i * 38,
+      vz: 80 + i * 20
+    }));
+
+    function frame(now) {
+      const dt = Math.min(0.032, Math.max(0.001, (now - last) / 1000));
+      last = now;
+      for (const s of state) {
+        s.vy += 2600 * dt;
+        s.y += s.vy * dt;
+        s.rx += s.vx * dt;
+        s.ry += s.vyRot * dt;
+        s.rz += s.vz * dt;
+        if (s.y >= 0) {
+          s.y = 0;
+          s.vy = -s.vy * 0.34;
+          s.vx *= 0.58;
+          s.vyRot *= 0.58;
+          s.vz *= 0.58;
+        }
+        s.die.style.transform = 'translateY(' + s.y.toFixed(2) + 'px)';
+        s.cube.style.transform = 'rotateX(' + s.rx.toFixed(1) + 'deg) rotateY(' + s.ry.toFixed(1) + 'deg) rotateZ(' + s.rz.toFixed(1) + 'deg)';
+      }
+      if (now - started < 900) {
+        S.diceRaf = requestAnimationFrame(frame);
+      } else {
+        for (const s of state) {
+          s.die.style.transform = '';
+          s.cube.style.transform = 'rotateX(-13deg) rotateY(16deg) rotateZ(0deg)';
+        }
+        S.diceRaf = 0;
+      }
     }
+    S.diceRaf = requestAnimationFrame(frame);
   }
 
   function spawnParticles() {
@@ -612,10 +695,15 @@
   function goMenu() {
     stopTimer();
     clearLater();
+    releaseRoom();
     S.gameToken++;
     S.coinToken++;
     if (S.coinTimer) clearTimeout(S.coinTimer);
+    if (S.coinRaf) cancelAnimationFrame(S.coinRaf);
+    if (S.diceRaf) cancelAnimationFrame(S.diceRaf);
     S.coinTimer = null;
+    S.coinRaf = 0;
+    S.diceRaf = 0;
     S.phase = 'idle';
     S.tutorialStage = 'off';
     setTutorial('');
@@ -631,6 +719,7 @@
   function startGame(mode) {
     stopTimer();
     clearLater();
+    releaseRoom();
     S.gameToken++;
     S.mode = mode;
     S.phase = 'idle';
@@ -647,7 +736,11 @@
     S.tutorialOnes = 0;
     S.coinToken++;
     if (S.coinTimer) clearTimeout(S.coinTimer);
+    if (S.coinRaf) cancelAnimationFrame(S.coinRaf);
+    if (S.diceRaf) cancelAnimationFrame(S.diceRaf);
     S.coinTimer = null;
+    S.coinRaf = 0;
+    S.diceRaf = 0;
     initPlayers();
     S.timer.active = false;
     dom.diceOverlay.classList.remove('is-open');
@@ -663,7 +756,9 @@
   function startCoin(forcedResult) {
     const token = ++S.coinToken;
     if (S.coinTimer) clearTimeout(S.coinTimer);
+    if (S.coinRaf) cancelAnimationFrame(S.coinRaf);
     S.coinTimer = null;
+    S.coinRaf = 0;
     const result = forcedResult || (cryptoRandom() < 0.5 ? '先' : '后');
 
     if (TEST_MODE) {
@@ -671,26 +766,178 @@
       return;
     }
 
-    dom.coinTitle.textContent = '硬币翻转中…';
-    dom.coinSub.textContent = '硬币落定后自动继续';
-    dom.coin3d.style.transition = 'none';
-    dom.coin3d.classList.remove('is-flipping');
-    dom.coin3d.style.transform = 'rotateY(0deg) rotateX(9deg)';
+    dom.coinTitle.textContent = '硬币翻滚中…';
+    dom.coinSub.textContent = '落下后自动继续';
     openOverlay(dom.coinOverlay);
-    void dom.coin3d.offsetWidth;
 
-    dom.coin3d.style.transition = 'transform 2.1s cubic-bezier(0.18, 0.78, 0.18, 1)';
-    dom.coin3d.classList.add('is-flipping');
-    const finalDeg = 1800 + (result === '后' ? 180 : 0);
-    dom.coin3d.style.transform = 'rotateY(' + finalDeg + 'deg) rotateX(9deg)';
+    let ctx = null;
+    try { ctx = dom.coinCanvas.getContext('2d'); } catch (err) { ctx = null; }
+    if (!ctx) {
+      S.coinTimer = setTimeout(() => finishCoin(result, token), 1400);
+      return;
+    }
 
-    S.coinTimer = setTimeout(() => {
-      if (token !== S.coinToken) return;
-      dom.coin3d.classList.remove('is-flipping');
-      dom.coinTitle.textContent = '硬币落定';
-      dom.coinSub.textContent = '';
-      S.coinTimer = setTimeout(() => finishCoin(result, token), 700);
-    }, 2150);
+    const W = dom.coinCanvas.width;
+    const H = dom.coinCanvas.height;
+    const tableY = 226;
+    const radius = 82;
+    let y = 42;
+    let vy = -330;
+    let angle = 0;
+    let angVel = 15;
+    let settleAt = 0;
+    let target = 0;
+    let started = performance.now();
+    let last = started;
+    let done = false;
+
+    function drawFrame() {
+      ctx.clearRect(0, 0, W, H);
+      const height = Math.max(0, tableY - y);
+
+      const shadowAlpha = Math.max(0.08, 0.42 - height / 620);
+      const shadowScale = 0.72 + height / 560;
+      ctx.save();
+      ctx.globalAlpha = shadowAlpha;
+      ctx.filter = 'blur(6px)';
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(W / 2, tableY + 17, radius * shadowScale, 12 * shadowScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      const cos = Math.cos(angle);
+      const sy = Math.max(0.055, Math.abs(cos) * 0.78);
+      const face = cos >= 0 ? '先' : '后';
+
+      ctx.save();
+      ctx.translate(W / 2, y);
+
+      if (Math.abs(cos) < 0.12) {
+        ctx.fillStyle = 'rgba(70, 42, 8, 0.9)';
+        ctx.beginPath();
+        ctx.ellipse(0, 8, radius * 1.04, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        const edge = ctx.createLinearGradient(-radius, 0, radius, 0);
+        edge.addColorStop(0, '#7a511e');
+        edge.addColorStop(0.22, '#d9ad66');
+        edge.addColorStop(0.5, '#f4dc9f');
+        edge.addColorStop(0.78, '#c49349');
+        edge.addColorStop(1, '#6f4818');
+        ctx.fillStyle = edge;
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') ctx.roundRect(-radius, -11, radius * 2, 22, 10);
+        else ctx.rect(-radius, -11, radius * 2, 22);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(86, 52, 12, 0.45)';
+        ctx.lineWidth = 1;
+        for (let i = -70; i <= 70; i += 7) {
+          ctx.beginPath();
+          ctx.moveTo(i, -10);
+          ctx.lineTo(i + 2, 10);
+          ctx.stroke();
+        }
+        ctx.restore();
+        return;
+      }
+
+      ctx.scale(1, sy);
+      ctx.fillStyle = 'rgba(91, 56, 16, 0.55)';
+      ctx.beginPath();
+      ctx.ellipse(0, 9, radius, radius, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      const metal = ctx.createRadialGradient(-radius * 0.32, -radius * 0.38, 4, 0, 0, radius * 1.12);
+      metal.addColorStop(0, '#fff1c4');
+      metal.addColorStop(0.24, '#f3d28f');
+      metal.addColorStop(0.55, '#cf9c52');
+      metal.addColorStop(0.82, '#9a6a2b');
+      metal.addColorStop(1, '#6a4518');
+      ctx.fillStyle = metal;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 236, 175, 0.8)';
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(91, 56, 16, 0.42)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius - 9, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, radius - 15, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(0, 0, radius - 12, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.fillStyle = 'rgba(70, 40, 7, 0.86)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '700 72px "Noto Serif SC", "Songti SC", "SimSun", serif';
+      ctx.fillText(face, 0, 4);
+      ctx.font = '600 7px "Noto Serif SC", serif';
+      ctx.fillStyle = 'rgba(72, 42, 8, 0.6)';
+      ctx.fillText(face === '先' ? 'FIRST' : 'SECOND', 0, 53);
+      ctx.restore();
+
+      ctx.strokeStyle = 'rgba(255, 248, 215, 0.32)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius - 24, -2.4, -0.9);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function tick(now) {
+      if (token !== S.coinToken || done) return;
+      const dt = Math.min(0.032, Math.max(0.001, (now - last) / 1000));
+      last = now;
+
+      if (!settleAt) {
+        vy += 1020 * dt;
+        y += vy * dt;
+        angle += angVel * dt;
+        if (y >= tableY) {
+          y = tableY;
+          vy = -vy * 0.33;
+          angVel *= 0.55;
+          if (now - started > 1450 && Math.abs(vy) < 55) {
+            const base = result === '后' ? Math.PI : 0;
+            target = base + Math.round((angle - base) / (Math.PI * 2)) * Math.PI * 2;
+            settleAt = now;
+          }
+        }
+        if (now - started > 2350) {
+          const base = result === '后' ? Math.PI : 0;
+          target = base + Math.round((angle - base) / (Math.PI * 2)) * Math.PI * 2;
+          settleAt = now;
+        }
+      } else {
+        const p = Math.min(1, (now - settleAt) / 520);
+        const ease = 1 - Math.pow(1 - p, 3);
+        y += (tableY - y) * Math.min(1, ease * 0.35);
+        angle += (target - angle) * Math.min(1, ease * 0.35);
+        if (p >= 1) {
+          y = tableY;
+          angle = target;
+          done = true;
+          drawFrame();
+          dom.coinTitle.textContent = '硬币落定';
+          dom.coinSub.textContent = '';
+          S.coinTimer = setTimeout(() => finishCoin(result, token), 460);
+          return;
+        }
+      }
+      drawFrame();
+      S.coinRaf = requestAnimationFrame(tick);
+    }
+
+    S.coinRaf = requestAnimationFrame(tick);
   }
 
   function finishCoin(result, token) {
@@ -730,9 +977,8 @@
     dom.tableStatus.textContent = '骰子投掷中…';
     const token = S.turnToken;
     const forced = options && options.forcedDice ? options.forcedDice.slice() : null;
-
-    renderRollingTable();
     const finalDice = (forced || Array.from({ length: 5 }, () => randomDie())).sort((a, b) => a - b);
+    renderRollingTable(finalDice);
     later(940, () => {
       if (S.turnToken !== token) return;
       afterRoll(finalDice, token);
@@ -741,6 +987,8 @@
 
   function afterRoll(finalDice, token) {
     if (S.turnToken !== token) return;
+    if (S.diceRaf) cancelAnimationFrame(S.diceRaf);
+    S.diceRaf = 0;
     if (S.rollInterval) { clearInterval(S.rollInterval); S.rollInterval = null; }
     S.dice = finalDice.slice().sort((a, b) => a - b);
     S.phase = 'rolled';
@@ -947,6 +1195,10 @@
   function renderAdjustPanel() {
     const a = S.adjust;
     if (!a) return;
+    const flipIndex = a.flipIndex;
+    const flipDir = a.flipDir;
+    a.flipIndex = null;
+    a.flipDir = 0;
     dom.diceRow.innerHTML = '';
     a.fixedValues.forEach(v => {
       const slot = document.createElement('div');
@@ -973,6 +1225,7 @@
       left.setAttribute('aria-label', '减一');
       left.addEventListener('click', () => changeAdjustValue(i, -1));
       const die = createDie(v);
+      if (i === flipIndex) die.classList.add(flipDir < 0 ? 'is-value-flipping-left' : 'is-value-flipping-right');
       const right = document.createElement('button');
       right.className = 'die-arrow die-arrow--right';
       right.type = 'button';
@@ -1006,6 +1259,8 @@
     if (S.phase !== 'adjust' || !S.adjust) return;
     const v = S.adjust.humanValues[index] + delta;
     S.adjust.humanValues[index] = v < 1 ? 6 : v > 6 ? 1 : v;
+    S.adjust.flipIndex = index;
+    S.adjust.flipDir = delta;
     renderAdjustPanel();
   }
 
@@ -1212,6 +1467,7 @@
   function endGame(tutorialWin) {
     if (S.phase === 'over') return;
     S.phase = 'over';
+    releaseRoom();
     S.scoreMode = false;
     stopTimer();
     closeOverlay(dom.paperOverlay);
@@ -1235,33 +1491,124 @@
   }
 
   /* ------------------------------ match flow ------------------------------ */
-  function startMatch() {
+  async function releaseRoom() {
+    if (S.roomPoll) clearInterval(S.roomPoll);
+    S.roomPoll = null;
+    const id = S.roomId;
+    S.roomId = null;
+    S.roomHost = false;
+    if (!id) return;
+    try {
+      await tdb('delete', { tag: 'timicard_room_' + id });
+    } catch (err) { /* the cleanup sweep will remove it later */ }
+  }
+
+  function roomPayload(raw) {
+    try {
+      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  async function startMatch() {
+    releaseRoom();
     const token = ++S.matchToken;
+    S.roomId = null;
+    S.roomHost = false;
+    S.matchBusy = true;
     dom.matchTitle.textContent = '匹配中';
-    dom.matchSub.textContent = '正在寻找空闲牌桌…';
+    dom.matchSub.textContent = '正在搜索真人牌桌…';
     dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i === 0));
     openOverlay(dom.matchOverlay);
     cleanupStaleRooms();
-    setTimeout(() => {
+
+    let rooms = [];
+    try {
+      const tags = await listRoomTags();
+      for (const tag of tags) {
+        const room = await getRoom(tag);
+        if (room && room.hostId !== CLIENT_ID) rooms.push({ tag, room });
+      }
+    } catch (err) { /* fall through to create */ }
+
+    if (token !== S.matchToken) return;
+
+    const now = Date.now();
+    const open = rooms.find(x => x.room.status === 'open' && now - Number(x.room.updatedAt || 0) < 30000);
+    if (open) {
+      try {
+        const room = { ...open.room, guestId: CLIENT_ID, status: 'matched', updatedAt: Date.now() };
+        await tdb('update', { tag: open.tag, value: JSON.stringify(room) });
+        if (token !== S.matchToken) return;
+        S.roomId = open.tag.replace('timicard_room_', '');
+        S.roomHost = false;
+        dom.matchTitle.textContent = '已找到真人';
+        dom.matchSub.textContent = '对手已加入 · 正在等待开局';
+        dom.matchSteps.forEach(s => s.classList.add('is-on'));
+        waitForMatchedRoom(token, true);
+        return;
+      } catch (err) { /* create a fresh room */ }
+    }
+
+    const id = 'R' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const room = {
+      status: 'open',
+      hostId: CLIENT_ID,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      game: 'xianhou'
+    };
+    try {
+      await tdb('update', { tag: 'timicard_room_' + id, value: JSON.stringify(room) });
       if (token !== S.matchToken) return;
-      dom.matchSub.textContent = '当前没有其他玩家在线';
+      S.roomId = id;
+      S.roomHost = true;
+      dom.matchTitle.textContent = '等待真人加入';
+      dom.matchSub.textContent = '房间 ' + id + ' · 把页面发给朋友';
       dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i <= 1));
-    }, 1600);
-    setTimeout(() => {
-      if (token !== S.matchToken) return;
-      dom.matchTitle.textContent = '暂未找到真人';
-      dom.matchSub.textContent = '即将进入人机练习';
-      dom.matchSteps.forEach(s => s.classList.add('is-on'));
-    }, 2800);
-    setTimeout(() => {
-      if (token !== S.matchToken) return;
-      closeOverlay(dom.matchOverlay);
-      startGame('ai');
-    }, 4100);
+      waitForMatchedRoom(token, false);
+    } catch (err) {
+      dom.matchTitle.textContent = '暂时无法联网';
+      dom.matchSub.textContent = '可以直接进入人机练习';
+    }
+  }
+
+  async function waitForMatchedRoom(token, alreadyMatched) {
+    if (S.roomPoll) clearInterval(S.roomPoll);
+    const poll = async () => {
+      if (token !== S.matchToken || !S.roomId) return;
+      try {
+        const room = await getRoom('timicard_room_' + S.roomId);
+        if (!room) {
+          dom.matchTitle.textContent = '房间已关闭';
+          dom.matchSub.textContent = '可以取消后重新匹配';
+          return;
+        }
+        const matched = alreadyMatched || room.status === 'matched' || !!room.guestId;
+        if (matched) {
+          dom.matchTitle.textContent = '真人对手已就位';
+          dom.matchSub.textContent = '联机对局同步即将接入';
+          dom.matchSteps.forEach(s => s.classList.add('is-on'));
+          return;
+        }
+        if (S.roomHost) {
+          room.updatedAt = Date.now();
+          await tdb('update', { tag: 'timicard_room_' + S.roomId, value: JSON.stringify(room) });
+          dom.matchSub.textContent = '房间 ' + S.roomId + ' · 等待真人加入';
+        }
+      } catch (err) { /* keep waiting */ }
+    };
+    poll();
+    S.roomPoll = setInterval(poll, 1500);
   }
 
   function cancelMatch() {
     S.matchToken++;
+    S.matchBusy = false;
+    if (S.roomPoll) clearInterval(S.roomPoll);
+    S.roomPoll = null;
+    releaseRoom();
     closeOverlay(dom.matchOverlay);
   }
 
@@ -1272,10 +1619,11 @@
   $('btnTutorial').addEventListener('click', startTutorial);
   $('btnMatchPractice').addEventListener('click', () => {
     S.matchToken++;
+    releaseRoom();
     closeOverlay(dom.matchOverlay);
     startGame('ai');
   });
-  $('btnPractice').addEventListener('click', () => startGame('ai'));
+  $('btnPractice').addEventListener('click', () => { releaseRoom(); startGame('ai'); });
   $('btnMatchCancel').addEventListener('click', cancelMatch);
   $('btnQuit').addEventListener('click', () => {
     if (S.phase !== 'over' && S.players.length) {
@@ -1343,6 +1691,19 @@
     goMenu();
   });
 
+  window.addEventListener('beforeunload', () => {
+    if (!S.roomId) return;
+    try {
+      const body = new URLSearchParams({
+        user: 'computor',
+        secret: '58787c39',
+        action: 'delete',
+        tag: 'timicard_room_' + S.roomId
+      });
+      fetch('https://tinywebdb.appinventor.space/api', { method: 'POST', body, keepalive: true });
+    } catch (err) { /* best effort */ }
+  });
+
   window.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
       if (dom.rulePop.classList.contains('is-open')) closeOverlay(dom.rulePop);
@@ -1381,15 +1742,6 @@
     renderTableDice(S.dice);
     dom.tableStatus.textContent = '三维骰子演示';
     updateHUD();
-    return;
-  }
-  if (PREVIEW === 'coin') {
-    showScreen('menu');
-    dom.coin3d.style.transition = 'none';
-    dom.coin3d.style.transform = 'rotateY(1980deg) rotateX(9deg)';
-    dom.coinTitle.textContent = '硬币落定';
-    dom.coinSub.textContent = '';
-    openOverlay(dom.coinOverlay);
     return;
   }
   showScreen('menu');
