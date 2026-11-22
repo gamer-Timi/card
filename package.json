@@ -1,0 +1,14 @@
+{
+  "name": "xianhou-card-game",
+  "version": "1.0.0",
+  "private": true,
+  "description": "五骰十二栏 · 先后",
+  "type": "commonjs",
+  "scripts": {
+    "build": "node build-game.mjs",
+    "ui-check": "node tests/ui-check.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}
