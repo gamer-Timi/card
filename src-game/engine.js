@@ -12,7 +12,6 @@
     { key: 'n4', label: '4', name: '数字 4', kind: 'number', face: 4 },
     { key: 'n5', label: '5', name: '数字 5', kind: 'number', face: 5 },
     { key: 'n6', label: '6', name: '数字 6', kind: 'number', face: 6 },
-    { key: 'total', label: '总和', name: '总和', kind: 'total' },
     { key: 'fullHouse', label: '葫芦', name: '葫芦', kind: 'fixed', value: 20 },
     { key: 'smallStraight', label: '小顺子', name: '小顺子', kind: 'fixed', value: 20 },
     { key: 'largeStraight', label: '大顺子', name: '大顺子', kind: 'fixed', value: 30 },
@@ -29,7 +28,6 @@
     n4: '选择数字栏 4：得分为最终五颗骰子中所有 4 的点数总和。',
     n5: '选择数字栏 5：得分为最终五颗骰子中所有 5 的点数总和。',
     n6: '选择数字栏 6：得分为最终五颗骰子中所有 6 的点数总和。',
-    total: '总和栏：得分为最终五颗骰子的点数总和。',
     fullHouse: '葫芦栏：最终骰面为「三颗同点 + 两颗同点」时，得 20 分。',
     smallStraight: '小顺子栏：最终骰面中能找出四颗连续点数时，得 20 分；6 与 1 视为连续。',
     largeStraight: '大顺子栏：最终骰面为五颗连续点数时，得 30 分；6 与 1 视为连续。',
@@ -89,7 +87,6 @@
     const cat = CATEGORY_BY_KEY[key];
     if (!cat) return 0;
     if (cat.kind === 'number') return dice.filter(d => d === cat.face).length * cat.face;
-    if (cat.kind === 'total') return dice.reduce((a, b) => a + b, 0);
     const counts = countsOf(dice);
     const max = Math.max(...Object.values(counts));
     if (key === 'fullHouse') return hasFullHouse(dice) ? 20 : 0;
@@ -263,14 +260,14 @@
 
   const TUTORIAL_AI_CARD = {
     n1: 4, n2: 8, n3: 12, n4: 12, n5: 15, n6: 18,
-    total: 27, fullHouse: 20, smallStraight: 20, largeStraight: 0,
+    fullHouse: 20, smallStraight: 20, largeStraight: 0,
     four: 20, five: 30
   };
 
   function tutorialPlayerCard(onesValue) {
     return {
       n1: onesValue, n2: 6, n3: 9, n4: 8, n5: 10, n6: 12,
-      total: 25, fullHouse: 20, smallStraight: 20, largeStraight: 30,
+      fullHouse: 20, smallStraight: 20, largeStraight: 30,
       four: null, five: 30
     };
   }

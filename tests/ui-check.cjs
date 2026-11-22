@@ -36,14 +36,12 @@ const { chromium } = require('playwright');
   });
 
   await page.click('#btnTutorial');
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(900);
   await page.screenshot({ path: path.join(outDir, '03-coin.png') });
-  await page.waitForSelector('#btnCoinContinue:not(.is-hidden)', { timeout: 8000 });
-  await page.click('#btnCoinContinue');
-  await page.waitForTimeout(2600);
+  await page.waitForTimeout(2200);
   await page.screenshot({ path: path.join(outDir, '04-game-ai-first.png') });
 
-  await page.waitForSelector('#diceOverlay.is-open', { timeout: 15000 });
+  await page.waitForSelector('#diceOverlay.is-open', { timeout: 18000 });
   await page.waitForTimeout(250);
   await page.screenshot({ path: path.join(outDir, '05-fix.png') });
   const fixLayout = await page.evaluate(() => {

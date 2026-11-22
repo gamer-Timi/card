@@ -4,6 +4,7 @@
   const E = window.GameEngine;
   const $ = id => document.getElementById(id);
   const $$ = sel => Array.prototype.slice.call(document.querySelectorAll(sel));
+  const TEST_MODE = new URLSearchParams(location.search).get('test') === '1';
   const CATS = E.CATEGORIES;
   const CAT_BY_KEY = E.CATEGORY_BY_KEY;
 
@@ -64,8 +65,13 @@
     },
     matchToken: 0,
     coinToken: 0,
-    coinOnDone: null,
+    coinPending: false,
+    coinForced: null,
+    coinFallback: null,
     coinResult: null,
+    diceCinemaPending: false,
+    diceCinemaToken: 0,
+    diceCinemaFallback: null,
     viewPaperPlayer: null
   };
 
@@ -105,10 +111,9 @@
     matchSteps: $$('.match-steps span'),
     btnMatchCancel: $('btnMatchCancel'),
     coinOverlay: $('coinOverlay'),
-    coin3d: $('coin3d'),
-    coinTitle: $('coinTitle'),
-    coinSub: $('coinSub'),
-    btnCoinContinue: $('btnCoinContinue'),
+    coinFrame: $('coinFrame'),
+    diceCinema: $('diceCinema'),
+    diceCinemaFrame: $('diceCinemaFrame'),
     diceOverlay: $('diceOverlay'),
     diceEyebrow: $('diceEyebrow'),
     diceTitle: $('diceTitle'),
@@ -189,7 +194,7 @@
   }
 
   function closeAllOverlays() {
-    [dom.matchOverlay, dom.coinOverlay, dom.diceOverlay, dom.paperOverlay, dom.rulePop, dom.jumpOverlay, dom.resultOverlay]
+    [dom.matchOverlay, dom.coinOverlay, dom.diceCinema, dom.diceOverlay, dom.paperOverlay, dom.rulePop, dom.jumpOverlay, dom.resultOverlay]
       .forEach(closeOverlay);
   }
 
@@ -230,7 +235,7 @@
   }
 
   function roundNumber() {
-    return Math.min(12, Math.max(1, Math.floor(S.turnNo / 2) + 1));
+    return Math.min(11, Math.max(1, Math.floor(S.turnNo / 2) + 1));
   }
 
   function updateHUD() {
@@ -240,8 +245,8 @@
     dom.hudPlayerScore.textContent = you.total;
     dom.hudOppName.textContent = S.mode === 'tutorial' ? '教学对手' : '练习对手';
     dom.hudPlayerName.textContent = '你';
-    dom.hudRound.textContent = '第 ' + roundNumber() + ' / 12 回合';
-    dom.footerTurn.textContent = '第 ' + roundNumber() + ' / 12 回合';
+    dom.hudRound.textContent = '第 ' + roundNumber() + ' / 11 回合';
+    dom.footerTurn.textContent = '第 ' + roundNumber() + ' / 11 回合';
     let phaseText = PHASE_LABEL[S.phase] || '等待开局';
     if (S.phase === 'intro') phaseText = S.active === 0 ? '你的回合' : '对方回合';
     if (S.phase === 'fix') phaseText = S.active === 0 ? '你正在固定骰子' : '对方正在固定骰子';
@@ -265,7 +270,7 @@
       const v = p.card[c.key];
       return `<span class="mini-paper-row${v == null ? '' : ' is-filled'}"><span>${c.label}</span><b>${v == null ? '·' : v}</b></span>`;
     }).join('');
-    list.innerHTML = rows + `<span class="mini-paper-row mini-paper-row--total"><span>总分</span><b>${p.total}</b></span>`;
+    list.innerHTML = rows + `<span class="mini-paper-row mini-paper-row--total"><span>总和</span><b>${p.total}</b></span>`;
     const btn = dom.miniPapers[i];
     if (btn) btn.classList.toggle('is-active-paper', S.phase !== 'idle' && S.active === i);
   }
@@ -439,7 +444,7 @@
     const selected = isScoring ? S.scoreKey : null;
     const scrollTop = dom.paperBody.scrollTop;
     const rows = CATS.map(c => paperRowHTML(c, p.card, { interactive, dice, selected, allowed })).join('');
-    dom.paperBody.innerHTML = rows + `<div class="paper-row paper-row--sum"><div class="cat-name">总分</div><div class="cat-desc">十二栏合计</div><div class="cat-score">${p.total}</div></div>`;
+    dom.paperBody.innerHTML = rows + `<div class="paper-row paper-row--total"><div class="cat-name">总和</div><div class="cat-desc">当前已填栏目的合计，不是可填栏目</div><div class="cat-score">${p.total}</div></div>`;
     dom.paperBody.scrollTop = scrollTop;
 
     dom.paperKicker.textContent = isScoring ? 'CHOOSE A CATEGORY' : 'SCORE SHEET';
@@ -508,9 +513,18 @@
     stopTimer();
     clearLater();
     S.gameToken++;
+    S.coinToken++;
+    S.coinPending = false;
+    if (S.coinFallback) clearTimeout(S.coinFallback);
+    S.coinFallback = null;
     S.phase = 'idle';
     S.tutorialStage = 'off';
     setTutorial('');
+    S.diceCinemaPending = false;
+    if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
+    S.diceCinemaFallback = null;
+    if (dom.coinFrame) dom.coinFrame.src = 'about:blank';
+    if (dom.diceCinemaFrame) dom.diceCinemaFrame.src = 'about:blank';
     closeAllOverlays();
     showScreen('menu');
   }
@@ -537,6 +551,13 @@
     S.scoreAllowed = null;
     S.tutorialStage = mode === 'tutorial' ? 'coin' : 'off';
     S.tutorialOnes = 0;
+    S.coinPending = false;
+    S.diceCinemaPending = false;
+    if (S.coinFallback) clearTimeout(S.coinFallback);
+    if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
+    S.coinFallback = null;
+    S.diceCinemaFallback = null;
+    if (dom.diceCinemaFrame) dom.diceCinemaFrame.src = 'about:blank';
     initPlayers();
     S.timer.active = false;
     dom.diceOverlay.classList.remove('is-open');
@@ -551,45 +572,37 @@
 
   function startCoin(forcedResult) {
     const token = ++S.coinToken;
-    S.coinResult = forcedResult;
-    S.coinOnDone = null;
-    dom.coinTitle.textContent = '硬币翻转中…';
-    dom.coinSub.textContent = '正面 先 · 反面 后';
-    dom.btnCoinContinue.classList.add('is-hidden');
-    dom.coin3d.style.transition = 'none';
-    dom.coin3d.style.transform = 'rotateY(0deg) rotateX(9deg)';
-    dom.coin3d.classList.remove('is-flipping');
-    openOverlay(dom.coinOverlay);
-    void dom.coin3d.offsetWidth;
-    dom.coin3d.style.transition = 'transform 2.1s cubic-bezier(0.18, 0.78, 0.18, 1)';
-    dom.coin3d.classList.add('is-flipping');
-    const finalDeg = 1800 + (forcedResult === '后' ? 180 : 0);
-    dom.coin3d.style.transform = 'rotateY(' + finalDeg + 'deg) rotateX(9deg)';
-
-    setTimeout(() => {
-      if (token !== S.coinToken) return;
-      dom.coin3d.classList.remove('is-flipping');
-      dom.coinTitle.textContent = forcedResult === '先' ? '你看到：先' : '你看到：后';
-      dom.coinSub.textContent = forcedResult === '先' ? '你先手 · 对手后手' : '你后手 · 对手先手';
-      dom.btnCoinContinue.classList.remove('is-hidden');
-      S.coinOnDone = () => {
-        if (token !== S.coinToken) return;
-        closeOverlay(dom.coinOverlay);
-        if (S.mode === 'tutorial') tutorialAiFirst();
-        else beginTurn(forcedResult === '先' ? 0 : 1);
-      };
+    S.coinPending = true;
+    S.coinForced = forcedResult || null;
+    S.coinResult = null;
+    if (S.coinFallback) clearTimeout(S.coinFallback);
+    if (TEST_MODE) {
       setTimeout(() => {
-        if (token === S.coinToken && S.coinOnDone) continueCoin();
-      }, 1550);
-    }, 2150);
+        if (token === S.coinToken) resolveCoin(forcedResult || (cryptoRandom() < 0.5 ? '先' : '后'), token);
+      }, 60);
+      return;
+    }
+    const faceParam = forcedResult ? '&face=' + (forcedResult === '先' ? 'heads' : 'tails') : '';
+    dom.coinFrame.src = 'coin.html?embed=1' + faceParam + '&t=' + Date.now();
+    openOverlay(dom.coinOverlay);
+    S.coinFallback = setTimeout(() => {
+      if (token !== S.coinToken || !S.coinPending) return;
+      resolveCoin(forcedResult || (cryptoRandom() < 0.5 ? '先' : '后'), token);
+    }, 16000);
   }
 
-  function continueCoin() {
-    if (S.coinOnDone) {
-      const fn = S.coinOnDone;
-      S.coinOnDone = null;
-      fn();
-    }
+  function resolveCoin(result, token) {
+    if (token !== S.coinToken || !S.coinPending) return;
+    S.coinPending = false;
+    if (S.coinFallback) clearTimeout(S.coinFallback);
+    S.coinFallback = null;
+    S.coinResult = result;
+    setTimeout(() => {
+      if (token !== S.coinToken) return;
+      closeOverlay(dom.coinOverlay);
+      if (S.mode === 'tutorial') tutorialAiFirst();
+      else beginTurn(result === '先' ? 0 : 1);
+    }, 480);
   }
 
   function beginTurn(active, options = {}) {
@@ -619,8 +632,17 @@
     S.phase = 'rolling';
     updateHUD();
     dom.tableStatus.textContent = '骰子投掷中…';
-    renderRollingTable();
     const token = S.turnToken;
+    const forced = options && options.forcedDice ? options.forcedDice.slice() : null;
+
+    if (S.mode !== 'tutorial' && !forced && !TEST_MODE) {
+      if (S.rollInterval) { clearInterval(S.rollInterval); S.rollInterval = null; }
+      dom.tableDice.innerHTML = '';
+      startDiceCinema(token);
+      return;
+    }
+
+    renderRollingTable();
     if (S.rollInterval) clearInterval(S.rollInterval);
     let ticks = 0;
     S.rollInterval = setInterval(() => {
@@ -629,24 +651,53 @@
       renderRollingTable();
     }, 82);
 
-    const forced = options && options.forcedDice ? options.forcedDice.slice() : null;
     const finalDice = (forced || Array.from({ length: 5 }, () => randomDie())).sort((a, b) => a - b);
-
     later(940, () => {
       if (S.turnToken !== token) return;
-      if (S.rollInterval) { clearInterval(S.rollInterval); S.rollInterval = null; }
-      S.dice = finalDice;
-      S.phase = 'rolled';
-      renderTableDice(S.dice);
-      dom.tableStatus.textContent = '已投出 · 等待固定';
-      updateHUD();
-      if (S.active === 0) {
-        later(420, () => { if (S.turnToken === token) openFix(); });
-      } else {
-        dom.tableStatus.textContent = '对手正在选择固定骰子…';
-        later(820, () => { if (S.turnToken === token) aiFix(); });
-      }
+      afterRoll(finalDice, token);
     });
+  }
+
+  function afterRoll(finalDice, token) {
+    if (S.turnToken !== token) return;
+    if (S.rollInterval) { clearInterval(S.rollInterval); S.rollInterval = null; }
+    S.dice = finalDice.slice().sort((a, b) => a - b);
+    S.phase = 'rolled';
+    renderTableDice(S.dice);
+    dom.tableStatus.textContent = '已投出 · 等待固定';
+    updateHUD();
+    if (S.active === 0) {
+      later(420, () => { if (S.turnToken === token) openFix(); });
+    } else {
+      dom.tableStatus.textContent = '对方正在选择固定骰子…';
+      later(820, () => { if (S.turnToken === token) aiFix(); });
+    }
+  }
+
+  function startDiceCinema(turnToken) {
+    const token = ++S.diceCinemaToken;
+    S.diceCinemaPending = true;
+    if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
+    dom.diceCinemaFrame.src = 'dice.html?embed=1&t=' + Date.now();
+    openOverlay(dom.diceCinema);
+    S.diceCinemaFallback = setTimeout(() => {
+      if (!S.diceCinemaPending || token !== S.diceCinemaToken) return;
+      finishDiceCinema(Array.from({ length: 5 }, () => randomDie()), turnToken);
+    }, 16000);
+  }
+
+  function finishDiceCinema(values, turnToken) {
+    if (!S.diceCinemaPending) return;
+    S.diceCinemaPending = false;
+    if (S.diceCinemaFallback) clearTimeout(S.diceCinemaFallback);
+    S.diceCinemaFallback = null;
+    closeOverlay(dom.diceCinema);
+    dom.diceCinemaFrame.src = 'about:blank';
+    const clean = (values || []).map(v => Number(v)).filter(v => v >= 1 && v <= 6);
+    if (clean.length !== 5) {
+      for (let i = clean.length; i < 5; i++) clean.push(1 + Math.floor(cryptoRandom() * 6));
+    }
+    afterRoll(clean.slice(0, 5), turnToken);
   }
 
   function fixRuleForStage() {
@@ -1074,13 +1125,13 @@
     S.players[1].card = aiCard;
     refreshPlayerTotal(0);
     refreshPlayerTotal(1);
-    S.turnNo = 22;
+    S.turnNo = 20;
     updateHUD();
     updateMiniPapers();
     S.active = 0;
     const lead = S.players[1].total - S.players[0].total;
     dom.jumpTitle.textContent = '时间快进';
-    dom.jumpText.textContent = '对方十二栏已全部填完，你只差一个「4条」。此时对方总分 ' + S.players[1].total + '，你 ' + S.players[0].total + '，对方领先 ' + lead + ' 分。';
+    dom.jumpText.textContent = '对方的计分纸已全部填完，你只差一个「4条」。此时对方总和 ' + S.players[1].total + '，你 ' + S.players[0].total + '，对方领先 ' + lead + ' 分。';
     openOverlay(dom.jumpOverlay);
     setTutorial('时间快进到最后一回合：你只差【4条】。对方领先 ' + lead + ' 分，填出 4 条就能反超。');
     later(2400, () => {
@@ -1156,13 +1207,27 @@
   $('btnRulesBack').addEventListener('click', goMenu);
   $('btnTutorial').addEventListener('click', startTutorial);
   $('btnMatchCancel').addEventListener('click', cancelMatch);
-  $('btnCoinContinue').addEventListener('click', continueCoin);
   $('btnQuit').addEventListener('click', () => {
     if (S.phase !== 'over' && S.players.length) {
       const ok = window.confirm('退出当前对局？');
       if (!ok) return;
     }
     goMenu();
+  });
+
+  window.addEventListener('message', event => {
+    if (dom.coinFrame && dom.coinFrame.contentWindow && event.source === dom.coinFrame.contentWindow) {
+      if (event.data && event.data.type === 'coin-toss-result') {
+        const result = event.data.face === 'heads' ? '先' : '后';
+        resolveCoin(result, S.coinToken);
+      }
+      return;
+    }
+    if (dom.diceCinemaFrame && dom.diceCinemaFrame.contentWindow && event.source === dom.diceCinemaFrame.contentWindow) {
+      if (event.data && event.data.type === 'dice-roll-result') {
+        finishDiceCinema(event.data.values, S.turnToken);
+      }
+    }
   });
 
   dom.diceConfirm.addEventListener('click', () => {
@@ -1236,6 +1301,8 @@
     state: S,
     startAI() { startGame('ai'); },
     startTutorial,
+    forceCoin(result) { resolveCoin(result === '先' ? '先' : '后', S.coinToken); },
+    forceDice(values) { finishDiceCinema(values, S.turnToken); },
     snapshot() {
       return {
         screen: S.screen,

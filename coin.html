@@ -13700,6 +13700,27 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
 (function () {
   'use strict';
 
+  const COIN_PARAMS = new URLSearchParams(location.search);
+  const COIN_EMBED = COIN_PARAMS.get('embed') === '1';
+  const COIN_FACE = COIN_PARAMS.get('face');
+  const FORCE_FACE = COIN_FACE === 'heads' || COIN_FACE === 'tails' ? COIN_FACE : null;
+
+  if (COIN_EMBED) {
+    document.body.classList.add('coin-embed');
+    const embedStyle = document.createElement('style');
+    embedStyle.textContent = `
+      body.coin-embed .topbar,
+      body.coin-embed .dock,
+      body.coin-embed .hint,
+      body.coin-embed .tiny-note,
+      body.coin-embed .frame,
+      body.coin-embed .grain { display: none !important; }
+      body.coin-embed .vignette { opacity: 0.72; }
+      body.coin-embed #stage { background: #05080c; }
+    `;
+    document.head.appendChild(embedStyle);
+  }
+
   const { World, Body, Vec3, Plane, Material, ContactMaterial, SAPBroadphase, Cylinder, Quaternion } = CANNON;
 
   /* ------------------------------ constants ------------------------------ */
@@ -13922,12 +13943,15 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
 
   function makeRoll(baseSeed) {
     let last = null;
-    for (let attempt = 0; attempt < 36; attempt++) {
+    const attempts = FORCE_FACE ? 400 : 36;
+    for (let attempt = 0; attempt < attempts; attempt++) {
       const seed = (baseSeed + attempt * 0x9e3779b9) >>> 0;
       const sim = simulateRoll(seed);
       sim.attempts = attempt + 1;
       last = sim;
-      if (sim.accepted && compositionOk(sim.frames, sim.final)) return sim;
+      if (!sim.accepted || !compositionOk(sim.frames, sim.final)) continue;
+      if (FORCE_FACE && sim.final.face !== FORCE_FACE) continue;
+      return sim;
     }
     const fallback = simulateRoll(0x5eedc01 + (baseSeed & 0xffff));
     fallback.fallback = true;
@@ -14760,6 +14784,31 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   }, 460);
 })();
 
+</script>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  let sent = false;
+  const send = (face) => {
+    if (sent) return;
+    sent = true;
+    parent.postMessage({ type: 'coin-toss-result', face: face }, '*');
+  };
+  const iv = setInterval(function () {
+    const api = window.__coin;
+    if (!api) return;
+    const snap = api.snapshot();
+    if (!snap || snap.phase !== 'settled' || !snap.final) return;
+    clearInterval(iv);
+    setTimeout(function () { send(snap.final.face); }, 900);
+  }, 120);
+  setTimeout(function () {
+    const api = window.__coin;
+    const snap = api && api.snapshot();
+    if (snap && snap.final) send(snap.final.face);
+  }, 14000);
+})();
 </script>
 </body>
 </html>

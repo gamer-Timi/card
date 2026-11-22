@@ -13688,6 +13688,26 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
 (function () {
   'use strict';
 
+  const DICE_EMBED = new URLSearchParams(location.search).get('embed') === '1';
+  if (DICE_EMBED) {
+    document.body.classList.add('dice-embed');
+    const embedStyle = document.createElement('style');
+    embedStyle.textContent = `
+      html, body, body.dice-embed #stage { background: transparent !important; }
+      body.dice-embed .topbar,
+      body.dice-embed .hero-caption,
+      body.dice-embed .dock,
+      body.dice-embed .hint,
+      body.dice-embed .tiny-note,
+      body.dice-embed .frame,
+      body.dice-embed .grain,
+      body.dice-embed .vignette,
+      body.dice-embed .settled-glow { display: none !important; }
+      body.dice-embed #scene { background: transparent !important; }
+    `;
+    document.head.appendChild(embedStyle);
+  }
+
   const { World, Body, Vec3, Box, Plane, Material, ContactMaterial, SAPBroadphase, Quaternion } = CANNON;
 
   /* ------------------------------ constants ------------------------------ */
@@ -14569,6 +14589,11 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     if (!bgReady) return;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, Hpx);
+    if (DICE_EMBED) {
+      for (const pose of poses) drawShadow(pose);
+      drawDice(poses);
+      return;
+    }
     ctx.drawImage(bgCanvas, 0, 0, W, Hpx);
 
     drawMotes(time, false);
@@ -14837,6 +14862,31 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   }, 420);
 })();
 
+</script>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') !== '1') return;
+  let sent = false;
+  const send = (values) => {
+    if (sent || !values) return;
+    sent = true;
+    parent.postMessage({ type: 'dice-roll-result', values: values.slice() }, '*');
+  };
+  const iv = setInterval(function () {
+    const api = window.__dice;
+    if (!api) return;
+    const snap = api.snapshot();
+    if (!snap || snap.phase !== 'settled' || !snap.values) return;
+    clearInterval(iv);
+    setTimeout(function () { send(snap.values); }, 260);
+  }, 100);
+  setTimeout(function () {
+    const api = window.__dice;
+    const snap = api && api.snapshot();
+    if (snap && snap.values) send(snap.values);
+  }, 16000);
+})();
 </script>
 </body>
 </html>

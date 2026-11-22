@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#07100d">
-<title>先后 · 五骰十二栏</title>
+<title>先后 · 五骰计分</title>
 <style>
 /*__CSS__*/
 </style>
@@ -23,9 +23,9 @@
       <span class="ambient-coin">先</span>
     </div>
     <div class="menu-frame">
-      <p class="eyebrow">FIVE DICE · TWELVE LINES</p>
+      <p class="eyebrow">FIVE DICE · SCORE SHEET</p>
       <h1 class="game-title"><span>先</span><i></i><span>后</span></h1>
-      <p class="game-sub">五骰 · 十二栏 · 一局定先后</p>
+      <p class="game-sub">五骰 · 计分纸 · 一局定先后</p>
       <div class="menu-actions">
         <button class="menu-btn" id="btnRules" type="button">
           <span class="menu-btn-index">01</span>
@@ -38,7 +38,7 @@
           <span class="menu-btn-en">MATCH</span>
         </button>
       </div>
-      <p class="menu-foot">掷骰 · 固定 · 暗调 · 十二栏定胜负</p>
+      <p class="menu-foot">掷骰 · 固定 · 暗调 · 纸上定胜负</p>
     </div>
     <div class="menu-corner menu-corner--tl"></div>
     <div class="menu-corner menu-corner--br"></div>
@@ -59,7 +59,7 @@
         <div class="rules-scroll">
           <section class="rules-block">
             <h3>一、目标</h3>
-            <p>双方各有一张十二栏计分纸。十二栏全部填完后，总分更高的一方获胜。总分相同则平局。</p>
+            <p>双方各有一张十一栏计分纸。十一栏全部填完后，总和更高的一方获胜。总和相同则平局。总和不是可填栏目，而是当前已填栏目的合计，会以不同颜色实时显示在纸张下方。</p>
           </section>
 
           <section class="rules-block">
@@ -82,19 +82,18 @@
             <h3>三、计分栏</h3>
             <div class="rules-grid">
               <div><span>1–6</span><p>对应点数之和</p></div>
-              <div><span>总和</span><p>五颗骰子的点数总和</p></div>
               <div><span>葫芦</span><p>三颗同点 + 两颗同点，得 20</p></div>
               <div><span>小顺子</span><p>四颗连续点数，得 20；6 与 1 连续</p></div>
               <div><span>大顺子</span><p>五颗连续点数，得 30；6 与 1 连续</p></div>
               <div><span>4 条</span><p>至少四颗相同，得 20</p></div>
               <div><span>5 条</span><p>五颗全部相同，得 30</p></div>
-              <div><span>总分</span><p>十二栏得分相加</p></div>
+              <div><span>总和</span><p>当前已填栏目的合计，用不同颜色标出，不可选择</p></div>
             </div>
           </section>
 
           <section class="rules-block">
             <h3>四、先后与回合</h3>
-            <p>开局投币决定先后。硬币正面为「先」，反面为「后」。每方每回合行动一次，双方各填满十二栏后结算。桌上计时器只有一个指针，一圈代表 60 秒；固定阶段 30 秒，暗调阶段 60 秒，计分阶段 30 秒。</p>
+            <p>开局投币决定先后。硬币正面为「先」，反面为「后」。每方每回合行动一次，双方各填满十一栏后结算。桌上计时器只有一个指针，一圈代表 60 秒；固定阶段 30 秒，暗调阶段 60 秒，计分阶段 30 秒。</p>
           </section>
 
           <section class="rules-block rules-block--note">
@@ -120,7 +119,7 @@
         <span class="hud-score" id="hudOppScore">0</span>
       </div>
       <div class="hud-center">
-        <span class="hud-round" id="hudRound">第 1 / 12 回合</span>
+        <span class="hud-round" id="hudRound">第 1 / 11 回合</span>
         <span class="hud-phase" id="hudPhase">等待开局</span>
       </div>
       <div class="hud-player hud-player--you">
@@ -157,7 +156,7 @@
         <span class="mini-paper-pin"></span>
         <span class="mini-paper-title" id="miniOppTitle">对手</span>
         <span class="mini-paper-list" id="miniOppList"></span>
-        <span class="mini-paper-total"><em>总分</em><b id="miniOppTotal">0</b></span>
+        <span class="mini-paper-total"><em>总和</em><b id="miniOppTotal">0</b></span>
         <span class="mini-paper-badge">表</span>
       </button>
 
@@ -165,7 +164,7 @@
         <span class="mini-paper-pin"></span>
         <span class="mini-paper-title" id="miniPlayerTitle">你</span>
         <span class="mini-paper-list" id="miniPlayerList"></span>
-        <span class="mini-paper-total"><em>总分</em><b id="miniPlayerTotal">0</b></span>
+        <span class="mini-paper-total"><em>总和</em><b id="miniPlayerTotal">0</b></span>
         <span class="mini-paper-badge">表</span>
       </button>
 
@@ -188,7 +187,7 @@
 
     <footer class="game-footer">
       <button class="ghost-btn ghost-btn--small" id="btnQuit" type="button">退出对局</button>
-      <div class="footer-turn" id="footerTurn">第 1 / 12 回合</div>
+      <div class="footer-turn" id="footerTurn">第 1 / 11 回合</div>
       <div class="footer-hint" id="footerHint">点击纸张查看计分表</div>
     </footer>
   </section>
@@ -207,19 +206,20 @@
 
   <!-- ============================== COIN ============================== -->
   <div class="overlay overlay--coin" id="coinOverlay" aria-hidden="true">
-    <div class="coin-card">
+    <iframe class="coin-frame" id="coinFrame" title="投币动画"></iframe>
+    <div class="coin-overlay-caption">
       <p class="eyebrow">COIN TOSS</p>
       <h2>投币决定先后</h2>
-      <div class="coin-perspective">
-        <div class="coin3d" id="coin3d">
-          <div class="coin-face coin-face--front"><span>先</span><em>FIRST</em></div>
-          <div class="coin-face coin-face--back"><span>后</span><em>SECOND</em></div>
-          <div class="coin-edge"></div>
-        </div>
-      </div>
-      <p class="coin-result" id="coinTitle">硬币翻转中…</p>
-      <p class="coin-sub" id="coinSub">正面 先 · 反面 后</p>
-      <button class="primary-btn is-hidden" id="btnCoinContinue" type="button">进入牌桌</button>
+      <p>硬币落定后自动继续</p>
+    </div>
+  </div>
+
+  <!-- ============================== DICE CINEMA ============================== -->
+  <div class="overlay overlay--dice-cinema" id="diceCinema" aria-hidden="true">
+    <iframe class="dice-cinema-frame" id="diceCinemaFrame" title="三维骰子投掷动画"></iframe>
+    <div class="dice-cinema-caption">
+      <p class="eyebrow">ROLL</p>
+      <span>骰子投掷中</span>
     </div>
   </div>
 
@@ -254,7 +254,7 @@
         <div class="mini-clock" id="paperTimer"><span>30</span><em>s</em></div>
       </div>
       <div class="paper-totalbar">
-        <span>当前总分</span>
+        <span>当前总和</span>
         <strong id="paperTotal">0</strong>
         <span class="paper-preview" id="paperPreview"></span>
       </div>
