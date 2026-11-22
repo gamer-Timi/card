@@ -70,7 +70,7 @@
   }
 
   function makeCamera(cx, cy, screenRadius, radius) {
-    const eye = v(0, 4.6, 7.1);
+    const eye = v(0, 3.5, 7.4);
     const target = v(0, 0, 0);
     const forward = norm(sub(target, eye));
     const right = norm(cross(forward, v(0, 1, 0)));
@@ -259,6 +259,7 @@
     let last = performance.now();
     let started = last;
     let targetQ = null;
+    let guideStartQ = null;
     let guideAt = 0;
     let restAt = 0;
     let raf = 0;
@@ -279,6 +280,7 @@
       if (!targetQ && now - started > 1100) {
         const base = result === '后' ? Math.PI / 2 : -Math.PI / 2;
         targetQ = qMul(qAxis(v(0, 1, 0), 0.35), qAxis(v(1, 0, 0), base));
+        guideStartQ = { x: q.x, y: q.y, z: q.z, w: q.w };
         guideAt = now;
       }
 
@@ -286,9 +288,9 @@
       pos.y += vel.y * dt;
 
       if (targetQ) {
-        const t = Math.min(1, (now - guideAt) / 1100);
-        const e = 1 - Math.pow(1 - t, 3);
-        q = qSlerp(q, targetQ, Math.min(1, 0.05 + e * 0.12));
+        const t = Math.min(1, (now - guideAt) / 1400);
+        const e = t * t * (3 - 2 * t);
+        q = qSlerp(guideStartQ, targetQ, e);
         omega = mul(omega, 0.9);
       } else {
         integrate(q, omega, dt);
@@ -308,7 +310,7 @@
 
       const n = qRot(q, v(0, 0, 1));
       const flat = Math.abs(n.y) > 0.992;
-      if (targetQ && flat && Math.abs(vel.y) < 2 && now - guideAt > 1100) {
+      if (targetQ && flat && Math.abs(vel.y) < 2 && now - guideAt > 1400) {
         if (!restAt) restAt = now;
         if (now - restAt > 600) {
           done = true;
@@ -366,11 +368,11 @@
     const size = Math.max(12, Math.abs(q2.x - q.x) * 1.05);
     const h = Math.max(0, height);
     ctx.save();
-    ctx.globalAlpha = Math.max(0.06, 0.3 - h * 0.035);
+    ctx.globalAlpha = Math.max(0.12, 0.42 - h * 0.035);
     ctx.filter = 'blur(6px)';
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(q.x, q.y + size * 0.22, size * 1.0, size * 0.28, 0, 0, TAU);
+    ctx.ellipse(q.x, q.y + size * 0.22, size * 1.08, size * 0.32, 0, 0, TAU);
     ctx.fill();
     ctx.restore();
   }
@@ -548,16 +550,22 @@
         }
         if (now - started > 2200) {
           settleAt = now;
+          for (const d of diceState) {
+            d.startQ = { x: d.q.x, y: d.q.y, z: d.q.z, w: d.q.w };
+            d.startPos = { x: d.pos.x, y: d.pos.y, z: d.pos.z };
+          }
         }
       } else {
-        const p = Math.min(1, (now - settleAt) / 850);
-        const e = 1 - Math.pow(1 - p, 3);
+        const p = Math.min(1, (now - settleAt) / 900);
+        const e = p * p * (3 - 2 * p);
         for (const d of diceState) {
-          d.q = qSlerp(d.q, d.targetQ, Math.min(1, e * 0.4));
-          d.pos.x += (d.targetX - d.pos.x) * Math.min(1, e * 0.35);
-          d.pos.z += (d.targetZ - d.pos.z) * Math.min(1, e * 0.35);
-          d.pos.y += (S - d.pos.y) * Math.min(1, e * 0.35);
-          if (p >= 1) { d.q = d.targetQ; d.pos = v(d.targetX, S, d.targetZ); }
+          d.q = qSlerp(d.startQ, d.targetQ, e);
+          d.pos = {
+            x: d.startPos.x + (d.targetX - d.startPos.x) * e,
+            y: d.startPos.y + (S * 0.96 - d.startPos.y) * e,
+            z: d.startPos.z + (d.targetZ - d.startPos.z) * e
+          };
+          if (p >= 1) { d.q = d.targetQ; d.pos = v(d.targetX, S * 0.96, d.targetZ); }
         }
         if (p >= 1) {
           if (!restAt) restAt = now;

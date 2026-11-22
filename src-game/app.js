@@ -148,6 +148,9 @@
     paperHint: $('paperHint'),
     paperConfirm: $('paperConfirm'),
     paperClose: $('paperClose'),
+    btnViewTable: $('btnViewTable'),
+    peekBar: $('peekBar'),
+    btnBackScore: $('btnBackScore'),
     paperTimer: $('paperTimer'),
     rulePop: $('rulePop'),
     ruleTitle: $('ruleTitle'),
@@ -588,20 +591,26 @@
     });
     if (!anchors.length) anchors.push([rect.width / 2, rect.height * 0.64]);
     for (const [x, y] of anchors) {
-      for (let k = 0; k < 5; k++) {
+      for (let k = 0; k < 8; k++) {
         const p = document.createElement('span');
         p.className = 'particle';
         const angle = Math.random() * Math.PI * 2;
-        const dist = 22 + Math.random() * 48;
+        const dist = 24 + Math.random() * 68;
         p.style.left = x + 'px';
         p.style.top = y + 'px';
         p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
-        p.style.setProperty('--dy', (Math.sin(angle) * dist - 24) + 'px');
+        p.style.setProperty('--dy', (Math.sin(angle) * dist - 30) + 'px');
         p.style.animationDelay = (Math.random() * 0.12) + 's';
         dom.particles.appendChild(p);
       }
     }
-    setTimeout(() => { dom.particles.innerHTML = ''; }, 1100);
+    setTimeout(() => { dom.particles.innerHTML = ''; }, 1500);
+  }
+
+  function dissolveTableDice() {
+    if (!dom.tableDice.querySelector('.die')) return;
+    spawnParticles();
+    dom.tableDice.innerHTML = '';
   }
 
   /* ------------------------------- paper UI ------------------------------- */
@@ -643,6 +652,7 @@
     dom.paperPreview.textContent = selectedCat ? `选择【${selectedCat.label}】+${previewScore} → ${p.total + previewScore}` : '';
     dom.paperConfirm.classList.toggle('is-hidden', !interactive);
     dom.paperClose.classList.toggle('is-hidden', interactive);
+    dom.btnViewTable.classList.toggle('is-hidden', !interactive);
     dom.paperConfirm.disabled = !interactive || !selected;
     dom.paperHint.textContent = interactive
       ? (allowed ? '教学：只能选择【' + CAT_BY_KEY[allowed].label + '】' : (selectedCat ? '已选中，可确认计分' : '点击一个未使用的栏目'))
@@ -651,6 +661,7 @@
   }
 
   function openPaper(playerIndex, options = {}) {
+    dom.paperOverlay.classList.remove('is-peeking');
     S.viewPaperPlayer = playerIndex;
     if (options.scoring) {
       S.scoreMode = true;
@@ -1040,6 +1051,7 @@
   }
 
   function setupAdjust() {
+    dissolveTableDice();
     const fixed = S.fixed.slice().sort((a, b) => a - b);
     const fixedValues = fixed.map(i => S.dice[i]);
     const remaining = S.dice.map((_, i) => i).filter(i => !fixed.includes(i));
@@ -1575,6 +1587,13 @@
   });
   dom.paperConfirm.addEventListener('click', confirmPaper);
   dom.paperClose.addEventListener('click', () => closeOverlay(dom.paperOverlay));
+  dom.btnViewTable.addEventListener('click', () => {
+    if (!S.scoreMode) return;
+    dom.paperOverlay.classList.add('is-peeking');
+  });
+  dom.btnBackScore.addEventListener('click', () => {
+    dom.paperOverlay.classList.remove('is-peeking');
+  });
   dom.paperOverlay.addEventListener('click', event => {
     if (event.target !== dom.paperOverlay) return;
     if (S.scoreMode) return;

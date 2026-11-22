@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --ink: #e8e2d4;
   --muted: #8e978f;
   --gold: #d7b575;
@@ -748,12 +748,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   text-align: left;
   cursor: pointer;
   box-shadow: 0 17px 36px rgba(0, 0, 0, 0.32), inset 0 0 0 5px rgba(255, 255, 255, 0.1);
-  transform: rotate(-2.6deg) perspective(600px) rotateX(7deg);
+  transform: perspective(760px) rotateX(32deg) rotateZ(-2.6deg);
+  transform-origin: 50% 50%;
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, filter 0.28s ease;
 }
 
 .mini-paper:hover {
-  transform: rotate(0) perspective(600px) rotateX(2deg) translateY(-6px) scale(1.025);
+  transform: perspective(760px) rotateX(8deg) rotateZ(0) translateY(-6px) scale(1.025);
   box-shadow: 0 24px 52px rgba(0, 0, 0, 0.42), 0 0 30px rgba(215, 181, 117, 0.08);
   z-index: 7;
 }
@@ -766,11 +767,11 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .mini-paper--opponent {
   top: 16.5%;
   left: 19%;
-  transform: rotate(182.2deg) perspective(600px) rotateX(7deg);
+  transform: perspective(760px) rotateX(32deg) rotateZ(182.2deg);
   filter: brightness(0.78) saturate(0.85);
 }
 
-.mini-paper--opponent:hover { transform: rotate(180deg) perspective(600px) rotateX(2deg) translateY(-6px) scale(1.025); filter: brightness(0.95); }
+.mini-paper--opponent:hover { transform: perspective(760px) rotateX(8deg) rotateZ(180deg) translateY(-6px) scale(1.025); filter: brightness(0.95); }
 
 .mini-paper--player { bottom: 11%; }
 
@@ -1183,9 +1184,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 /* ============================== turn banner / toast ============================== */
 .turn-banner {
   position: absolute;
-  z-index: 20;
+  z-index: 190;
   left: 50%;
-  top: 43%;
+  top: 14%;
   transform: translate(-50%, -50%) scale(0.96);
   padding: 18px 40px;
   border-top: 1px solid rgba(215, 181, 117, 0.3);
@@ -1211,22 +1212,23 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .toast {
   position: absolute;
-  z-index: 35;
+  z-index: 300;
   left: 50%;
-  top: 74%;
-  transform: translate(-50%, 8px);
+  top: 12px;
+  transform: translate(-50%, -8px);
   padding: 9px 16px;
-  border: 1px solid rgba(215, 181, 117, 0.25);
+  border: 1px solid rgba(215, 181, 117, 0.35);
   border-radius: 999px;
-  background: rgba(5, 10, 8, 0.9);
-  color: rgba(239, 224, 194, 0.86);
+  background: rgba(5, 10, 8, 0.96);
+  color: rgba(245, 230, 199, 0.96);
   font-size: 10px;
   letter-spacing: 0.08em;
   white-space: nowrap;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s;
 }
 
 .toast.is-visible { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
@@ -1257,15 +1259,15 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .tutorial-card p { margin: 7px 0 0; color: rgba(236, 229, 212, 0.72); font-size: 11px; line-height: 1.7; }
 
 /* ============================== particles ============================== */
-.particles { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+.particles { position: absolute; inset: 0; z-index: 18; pointer-events: none; }
 .particle {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #e5c483;
-  box-shadow: 0 0 7px rgba(229, 196, 131, 0.8);
-  animation: particleFly 0.85s cubic-bezier(0.15, 0.65, 0.3, 1) forwards;
+  box-shadow: 0 0 9px rgba(229, 196, 131, 0.9);
+  animation: particleFly 1.15s cubic-bezier(0.15, 0.65, 0.3, 1) forwards;
 }
 
 @keyframes particleFly {
@@ -1313,13 +1315,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 .overlay.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
-.overlay--match { z-index: 100; background: rgba(2, 6, 4, 0.82); }
-.overlay--coin { z-index: 80; background: rgba(2, 6, 4, 0.66); }
-.overlay--dice { z-index: 100; background: rgba(2, 5, 4, 0.8); }
-.overlay--paper { z-index: 105; background: rgba(2, 5, 4, 0.8); }
-.overlay--rule { z-index: 110; background: rgba(0, 0, 0, 0.58); }
-.overlay--jump { z-index: 115; background: rgba(2, 6, 4, 0.82); }
-.overlay--result { z-index: 120; background: rgba(2, 5, 4, 0.9); }
+.overlay--match { z-index: 200; background: rgba(2, 6, 4, 0.82); }
+.overlay--coin { z-index: 180; background: rgba(2, 6, 4, 0.66); }
+.overlay--dice { z-index: 200; background: rgba(2, 5, 4, 0.8); }
+.overlay--paper { z-index: 205; background: rgba(2, 5, 4, 0.8); }
+.overlay--rule { z-index: 210; background: rgba(0, 0, 0, 0.58); }
+.overlay--jump { z-index: 215; background: rgba(2, 6, 4, 0.82); }
+.overlay--result { z-index: 220; background: rgba(2, 5, 4, 0.9); }
 
 .modal-head,
 .paper-modal-head {
@@ -1667,6 +1669,23 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 .paper-modal-head { position: relative; z-index: 1; padding-bottom: 13px; border-bottom: 1px solid rgba(94, 67, 32, 0.17); }
+
+.peek-bar {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 7%;
+  z-index: 2;
+  transform: translateX(-50%);
+}
+
+.overlay--paper.is-peeking {
+  background: transparent;
+  pointer-events: none;
+}
+
+.overlay--paper.is-peeking .paper-modal { display: none; }
+.overlay--paper.is-peeking .peek-bar { display: flex; pointer-events: auto; }
 .paper-modal-head .eyebrow { color: rgba(115, 83, 35, 0.53); }
 .paper-modal-head h2 { color: #493718; }
 
@@ -2001,4 +2020,5 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   .center-zone { top: 70%; }
   .game-footer { height: 42px; }
 }
+
 

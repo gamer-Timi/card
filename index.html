@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#07100d">
 <title>先后 · 五骰计分</title>
 <style>
-:root {
+﻿:root {
   --ink: #e8e2d4;
   --muted: #8e978f;
   --gold: #d7b575;
@@ -756,12 +756,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   text-align: left;
   cursor: pointer;
   box-shadow: 0 17px 36px rgba(0, 0, 0, 0.32), inset 0 0 0 5px rgba(255, 255, 255, 0.1);
-  transform: rotate(-2.6deg) perspective(600px) rotateX(7deg);
+  transform: perspective(760px) rotateX(32deg) rotateZ(-2.6deg);
+  transform-origin: 50% 50%;
   transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, filter 0.28s ease;
 }
 
 .mini-paper:hover {
-  transform: rotate(0) perspective(600px) rotateX(2deg) translateY(-6px) scale(1.025);
+  transform: perspective(760px) rotateX(8deg) rotateZ(0) translateY(-6px) scale(1.025);
   box-shadow: 0 24px 52px rgba(0, 0, 0, 0.42), 0 0 30px rgba(215, 181, 117, 0.08);
   z-index: 7;
 }
@@ -774,11 +775,11 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .mini-paper--opponent {
   top: 16.5%;
   left: 19%;
-  transform: rotate(182.2deg) perspective(600px) rotateX(7deg);
+  transform: perspective(760px) rotateX(32deg) rotateZ(182.2deg);
   filter: brightness(0.78) saturate(0.85);
 }
 
-.mini-paper--opponent:hover { transform: rotate(180deg) perspective(600px) rotateX(2deg) translateY(-6px) scale(1.025); filter: brightness(0.95); }
+.mini-paper--opponent:hover { transform: perspective(760px) rotateX(8deg) rotateZ(180deg) translateY(-6px) scale(1.025); filter: brightness(0.95); }
 
 .mini-paper--player { bottom: 11%; }
 
@@ -1191,9 +1192,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 /* ============================== turn banner / toast ============================== */
 .turn-banner {
   position: absolute;
-  z-index: 20;
+  z-index: 190;
   left: 50%;
-  top: 43%;
+  top: 14%;
   transform: translate(-50%, -50%) scale(0.96);
   padding: 18px 40px;
   border-top: 1px solid rgba(215, 181, 117, 0.3);
@@ -1219,22 +1220,23 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .toast {
   position: absolute;
-  z-index: 35;
+  z-index: 300;
   left: 50%;
-  top: 74%;
-  transform: translate(-50%, 8px);
+  top: 12px;
+  transform: translate(-50%, -8px);
   padding: 9px 16px;
-  border: 1px solid rgba(215, 181, 117, 0.25);
+  border: 1px solid rgba(215, 181, 117, 0.35);
   border-radius: 999px;
-  background: rgba(5, 10, 8, 0.9);
-  color: rgba(239, 224, 194, 0.86);
+  background: rgba(5, 10, 8, 0.96);
+  color: rgba(245, 230, 199, 0.96);
   font-size: 10px;
   letter-spacing: 0.08em;
   white-space: nowrap;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  transition: opacity 0.22s ease, transform 0.22s ease, visibility 0.22s;
 }
 
 .toast.is-visible { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
@@ -1265,15 +1267,15 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .tutorial-card p { margin: 7px 0 0; color: rgba(236, 229, 212, 0.72); font-size: 11px; line-height: 1.7; }
 
 /* ============================== particles ============================== */
-.particles { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+.particles { position: absolute; inset: 0; z-index: 18; pointer-events: none; }
 .particle {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #e5c483;
-  box-shadow: 0 0 7px rgba(229, 196, 131, 0.8);
-  animation: particleFly 0.85s cubic-bezier(0.15, 0.65, 0.3, 1) forwards;
+  box-shadow: 0 0 9px rgba(229, 196, 131, 0.9);
+  animation: particleFly 1.15s cubic-bezier(0.15, 0.65, 0.3, 1) forwards;
 }
 
 @keyframes particleFly {
@@ -1321,13 +1323,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 .overlay.is-open { opacity: 1; visibility: visible; pointer-events: auto; }
-.overlay--match { z-index: 100; background: rgba(2, 6, 4, 0.82); }
-.overlay--coin { z-index: 80; background: rgba(2, 6, 4, 0.66); }
-.overlay--dice { z-index: 100; background: rgba(2, 5, 4, 0.8); }
-.overlay--paper { z-index: 105; background: rgba(2, 5, 4, 0.8); }
-.overlay--rule { z-index: 110; background: rgba(0, 0, 0, 0.58); }
-.overlay--jump { z-index: 115; background: rgba(2, 6, 4, 0.82); }
-.overlay--result { z-index: 120; background: rgba(2, 5, 4, 0.9); }
+.overlay--match { z-index: 200; background: rgba(2, 6, 4, 0.82); }
+.overlay--coin { z-index: 180; background: rgba(2, 6, 4, 0.66); }
+.overlay--dice { z-index: 200; background: rgba(2, 5, 4, 0.8); }
+.overlay--paper { z-index: 205; background: rgba(2, 5, 4, 0.8); }
+.overlay--rule { z-index: 210; background: rgba(0, 0, 0, 0.58); }
+.overlay--jump { z-index: 215; background: rgba(2, 6, 4, 0.82); }
+.overlay--result { z-index: 220; background: rgba(2, 5, 4, 0.9); }
 
 .modal-head,
 .paper-modal-head {
@@ -1675,6 +1677,23 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 .paper-modal-head { position: relative; z-index: 1; padding-bottom: 13px; border-bottom: 1px solid rgba(94, 67, 32, 0.17); }
+
+.peek-bar {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 7%;
+  z-index: 2;
+  transform: translateX(-50%);
+}
+
+.overlay--paper.is-peeking {
+  background: transparent;
+  pointer-events: none;
+}
+
+.overlay--paper.is-peeking .paper-modal { display: none; }
+.overlay--paper.is-peeking .peek-bar { display: flex; pointer-events: auto; }
 .paper-modal-head .eyebrow { color: rgba(115, 83, 35, 0.53); }
 .paper-modal-head h2 { color: #493718; }
 
@@ -2011,6 +2030,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 
+
 </style>
 </head>
 <body>
@@ -2254,9 +2274,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       <div class="paper-sheet" id="paperBody"></div>
       <div class="paper-actions">
         <span class="paper-hint" id="paperHint">点击栏目查看规则</span>
+        <button class="ghost-btn" id="btnViewTable" type="button">查看桌面情况</button>
         <button class="primary-btn" id="paperConfirm" type="button">确定选择</button>
         <button class="ghost-btn" id="paperClose" type="button">关闭</button>
       </div>
+    </div>
+    <div class="peek-bar" id="peekBar">
+      <button class="primary-btn" id="btnBackScore" type="button">返回计分</button>
     </div>
   </div>
 
@@ -2680,7 +2704,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   }
 
   function makeCamera(cx, cy, screenRadius, radius) {
-    const eye = v(0, 4.6, 7.1);
+    const eye = v(0, 3.5, 7.4);
     const target = v(0, 0, 0);
     const forward = norm(sub(target, eye));
     const right = norm(cross(forward, v(0, 1, 0)));
@@ -2869,6 +2893,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     let last = performance.now();
     let started = last;
     let targetQ = null;
+    let guideStartQ = null;
     let guideAt = 0;
     let restAt = 0;
     let raf = 0;
@@ -2889,6 +2914,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       if (!targetQ && now - started > 1100) {
         const base = result === '后' ? Math.PI / 2 : -Math.PI / 2;
         targetQ = qMul(qAxis(v(0, 1, 0), 0.35), qAxis(v(1, 0, 0), base));
+        guideStartQ = { x: q.x, y: q.y, z: q.z, w: q.w };
         guideAt = now;
       }
 
@@ -2896,9 +2922,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       pos.y += vel.y * dt;
 
       if (targetQ) {
-        const t = Math.min(1, (now - guideAt) / 1100);
-        const e = 1 - Math.pow(1 - t, 3);
-        q = qSlerp(q, targetQ, Math.min(1, 0.05 + e * 0.12));
+        const t = Math.min(1, (now - guideAt) / 1400);
+        const e = t * t * (3 - 2 * t);
+        q = qSlerp(guideStartQ, targetQ, e);
         omega = mul(omega, 0.9);
       } else {
         integrate(q, omega, dt);
@@ -2918,7 +2944,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
       const n = qRot(q, v(0, 0, 1));
       const flat = Math.abs(n.y) > 0.992;
-      if (targetQ && flat && Math.abs(vel.y) < 2 && now - guideAt > 1100) {
+      if (targetQ && flat && Math.abs(vel.y) < 2 && now - guideAt > 1400) {
         if (!restAt) restAt = now;
         if (now - restAt > 600) {
           done = true;
@@ -2976,11 +3002,11 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     const size = Math.max(12, Math.abs(q2.x - q.x) * 1.05);
     const h = Math.max(0, height);
     ctx.save();
-    ctx.globalAlpha = Math.max(0.06, 0.3 - h * 0.035);
+    ctx.globalAlpha = Math.max(0.12, 0.42 - h * 0.035);
     ctx.filter = 'blur(6px)';
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(q.x, q.y + size * 0.22, size * 1.0, size * 0.28, 0, 0, TAU);
+    ctx.ellipse(q.x, q.y + size * 0.22, size * 1.08, size * 0.32, 0, 0, TAU);
     ctx.fill();
     ctx.restore();
   }
@@ -3158,16 +3184,22 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
         }
         if (now - started > 2200) {
           settleAt = now;
+          for (const d of diceState) {
+            d.startQ = { x: d.q.x, y: d.q.y, z: d.q.z, w: d.q.w };
+            d.startPos = { x: d.pos.x, y: d.pos.y, z: d.pos.z };
+          }
         }
       } else {
-        const p = Math.min(1, (now - settleAt) / 850);
-        const e = 1 - Math.pow(1 - p, 3);
+        const p = Math.min(1, (now - settleAt) / 900);
+        const e = p * p * (3 - 2 * p);
         for (const d of diceState) {
-          d.q = qSlerp(d.q, d.targetQ, Math.min(1, e * 0.4));
-          d.pos.x += (d.targetX - d.pos.x) * Math.min(1, e * 0.35);
-          d.pos.z += (d.targetZ - d.pos.z) * Math.min(1, e * 0.35);
-          d.pos.y += (S - d.pos.y) * Math.min(1, e * 0.35);
-          if (p >= 1) { d.q = d.targetQ; d.pos = v(d.targetX, S, d.targetZ); }
+          d.q = qSlerp(d.startQ, d.targetQ, e);
+          d.pos = {
+            x: d.startPos.x + (d.targetX - d.startPos.x) * e,
+            y: d.startPos.y + (S * 0.96 - d.startPos.y) * e,
+            z: d.startPos.z + (d.targetZ - d.startPos.z) * e
+          };
+          if (p >= 1) { d.q = d.targetQ; d.pos = v(d.targetX, S * 0.96, d.targetZ); }
         }
         if (p >= 1) {
           if (!restAt) restAt = now;
@@ -3352,6 +3384,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     paperHint: $('paperHint'),
     paperConfirm: $('paperConfirm'),
     paperClose: $('paperClose'),
+    btnViewTable: $('btnViewTable'),
+    peekBar: $('peekBar'),
+    btnBackScore: $('btnBackScore'),
     paperTimer: $('paperTimer'),
     rulePop: $('rulePop'),
     ruleTitle: $('ruleTitle'),
@@ -3792,20 +3827,26 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     });
     if (!anchors.length) anchors.push([rect.width / 2, rect.height * 0.64]);
     for (const [x, y] of anchors) {
-      for (let k = 0; k < 5; k++) {
+      for (let k = 0; k < 8; k++) {
         const p = document.createElement('span');
         p.className = 'particle';
         const angle = Math.random() * Math.PI * 2;
-        const dist = 22 + Math.random() * 48;
+        const dist = 24 + Math.random() * 68;
         p.style.left = x + 'px';
         p.style.top = y + 'px';
         p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
-        p.style.setProperty('--dy', (Math.sin(angle) * dist - 24) + 'px');
+        p.style.setProperty('--dy', (Math.sin(angle) * dist - 30) + 'px');
         p.style.animationDelay = (Math.random() * 0.12) + 's';
         dom.particles.appendChild(p);
       }
     }
-    setTimeout(() => { dom.particles.innerHTML = ''; }, 1100);
+    setTimeout(() => { dom.particles.innerHTML = ''; }, 1500);
+  }
+
+  function dissolveTableDice() {
+    if (!dom.tableDice.querySelector('.die')) return;
+    spawnParticles();
+    dom.tableDice.innerHTML = '';
   }
 
   /* ------------------------------- paper UI ------------------------------- */
@@ -3847,6 +3888,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     dom.paperPreview.textContent = selectedCat ? `选择【${selectedCat.label}】+${previewScore} → ${p.total + previewScore}` : '';
     dom.paperConfirm.classList.toggle('is-hidden', !interactive);
     dom.paperClose.classList.toggle('is-hidden', interactive);
+    dom.btnViewTable.classList.toggle('is-hidden', !interactive);
     dom.paperConfirm.disabled = !interactive || !selected;
     dom.paperHint.textContent = interactive
       ? (allowed ? '教学：只能选择【' + CAT_BY_KEY[allowed].label + '】' : (selectedCat ? '已选中，可确认计分' : '点击一个未使用的栏目'))
@@ -3855,6 +3897,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   }
 
   function openPaper(playerIndex, options = {}) {
+    dom.paperOverlay.classList.remove('is-peeking');
     S.viewPaperPlayer = playerIndex;
     if (options.scoring) {
       S.scoreMode = true;
@@ -4244,6 +4287,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   }
 
   function setupAdjust() {
+    dissolveTableDice();
     const fixed = S.fixed.slice().sort((a, b) => a - b);
     const fixedValues = fixed.map(i => S.dice[i]);
     const remaining = S.dice.map((_, i) => i).filter(i => !fixed.includes(i));
@@ -4779,6 +4823,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   });
   dom.paperConfirm.addEventListener('click', confirmPaper);
   dom.paperClose.addEventListener('click', () => closeOverlay(dom.paperOverlay));
+  dom.btnViewTable.addEventListener('click', () => {
+    if (!S.scoreMode) return;
+    dom.paperOverlay.classList.add('is-peeking');
+  });
+  dom.btnBackScore.addEventListener('click', () => {
+    dom.paperOverlay.classList.remove('is-peeking');
+  });
   dom.paperOverlay.addEventListener('click', event => {
     if (event.target !== dom.paperOverlay) return;
     if (S.scoreMode) return;
