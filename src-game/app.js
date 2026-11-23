@@ -583,6 +583,21 @@
     S.diceRaf = requestAnimationFrame(frame);
   }
 
+  function addParticlesAt(x, y, count) {
+    for (let k = 0; k < count; k++) {
+      const p = document.createElement('span');
+      p.className = 'particle';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 24 + Math.random() * 68;
+      p.style.left = x + 'px';
+      p.style.top = y + 'px';
+      p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--dy', (Math.sin(angle) * dist - 30) + 'px');
+      p.style.animationDelay = (Math.random() * 0.12) + 's';
+      dom.particles.appendChild(p);
+    }
+  }
+
   function spawnParticles() {
     const rect = dom.game.getBoundingClientRect();
     dom.particles.innerHTML = '';
@@ -592,28 +607,30 @@
       const r = el.getBoundingClientRect();
       anchors.push([r.left - rect.left + r.width / 2, r.top - rect.top + r.height / 2]);
     });
-    if (!anchors.length) anchors.push([rect.width / 2, rect.height * 0.64]);
-    for (const [x, y] of anchors) {
-      for (let k = 0; k < 8; k++) {
-        const p = document.createElement('span');
-        p.className = 'particle';
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 24 + Math.random() * 68;
-        p.style.left = x + 'px';
-        p.style.top = y + 'px';
-        p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
-        p.style.setProperty('--dy', (Math.sin(angle) * dist - 30) + 'px');
-        p.style.animationDelay = (Math.random() * 0.12) + 's';
-        dom.particles.appendChild(p);
-      }
-    }
+    if (!anchors.length) anchors.push([rect.width / 2, rect.height * 0.5]);
+    for (const [x, y] of anchors) addParticlesAt(x, y, 8);
     setTimeout(() => { dom.particles.innerHTML = ''; }, 1500);
   }
 
   function dissolveTableDice() {
-    if (!dom.tableDice.querySelector('.die')) return;
-    spawnParticles();
-    dom.tableDice.innerHTML = '';
+    const dice = Array.from(dom.tableDice.querySelectorAll('.die'));
+    if (!dice.length) return;
+    const gameRect = dom.game.getBoundingClientRect();
+    dom.particles.innerHTML = '';
+    dice.forEach(el => el.classList.add('is-dissolving'));
+    let wave = 0;
+    const timer = setInterval(() => {
+      if (wave >= 6) { clearInterval(timer); return; }
+      dice.forEach(el => {
+        const r = el.getBoundingClientRect();
+        const x = r.left - gameRect.left + r.width / 2;
+        const y = r.top - gameRect.top + r.height * (wave / 6) + 4;
+        addParticlesAt(x, y, 3);
+      });
+      wave++;
+    }, 110);
+    setTimeout(() => { dom.tableDice.innerHTML = ''; }, 900);
+    setTimeout(() => { dom.particles.innerHTML = ''; }, 1800);
   }
 
   /* ------------------------------- paper UI ------------------------------- */
@@ -1056,8 +1073,14 @@
     later(620, () => { if (S.turnToken === token) setupAdjust(); });
   }
 
-  function setupAdjust() {
-    dissolveTableDice();
+  function setupAdjust(skipDissolve) {
+    if (!skipDissolve && dom.tableDice.querySelector('.die')) {
+      dissolveTableDice();
+      setTimeout(() => {
+        if (S.phase === 'fixed') setupAdjust(true);
+      }, 960);
+      return;
+    }
     const fixed = S.fixed.slice().sort((a, b) => a - b);
     const fixedValues = fixed.map(i => S.dice[i]);
     const remaining = S.dice.map((_, i) => i).filter(i => !fixed.includes(i));

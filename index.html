@@ -895,7 +895,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   position: absolute;
   z-index: 12;
   left: 50%;
-  top: 67%;
+  top: 54%;
   width: min(760px, 80vw);
   transform: translate(-50%, -50%);
   display: flex;
@@ -1038,6 +1038,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   gap: 2px;
   padding: 7px;
   border: 1px solid rgba(124, 102, 64, 0.28);
+  border-radius: 9px;
   border-radius: 10px;
   overflow: hidden;
   backface-visibility: hidden;
@@ -1088,6 +1089,17 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .die.is-landed {
   animation: dieLand 0.36s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.die.is-dissolving {
+  animation: dieDissolve 0.88s cubic-bezier(0.4, 0, 0.7, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes dieDissolve {
+  0% { clip-path: inset(0 0 0 0); opacity: 1; filter: brightness(1); }
+  55% { clip-path: inset(58% 0 0 0); opacity: 0.55; filter: brightness(1.25); }
+  100% { clip-path: inset(100% 0 0 0); opacity: 0; transform: translateY(6px) scale(0.96); }
 }
 
 @keyframes dieLand {
@@ -1701,6 +1713,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .overlay--paper.is-peeking {
   background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   pointer-events: none;
 }
 
@@ -1945,7 +1959,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   .mini-paper { min-height: 92px; }
   .mini-paper--opponent { top: 13%; left: 15%; }
   .mini-paper--player { bottom: 8%; left: 4.5%; }
-  .center-zone { top: 69%; width: 92vw; }
+  .center-zone { top: 58%; width: 92vw; }
   .table-clock { width: 104px; height: 104px; top: 51%; }
   .table-dice { gap: 4px; }
   .table-dice .die { width: 44px; height: 44px; padding: 5px; border-radius: 10px; }
@@ -1976,7 +1990,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   .tutorial-card p { font-size: 10px; }
   .table-clock { width: 88px; height: 88px; }
   .clock-caption { display: none; }
-  .center-zone { top: 70%; gap: 8px; }
+  .center-zone { top: 60%; gap: 8px; }
   .table-dice .die { width: 36px; height: 36px; padding: 4px; border-radius: 9px; }
   .table-dice .die--cube { --cube-half: 18px; padding: 0; border: 0; border-radius: 0; }
   .table-dice .die-value { display: none; }
@@ -2037,9 +2051,10 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   .mini-paper { width: 136px; min-height: 170px; }
   .mini-paper-list { display: none; }
   .mini-paper { min-height: 82px; }
-  .center-zone { top: 70%; }
+  .center-zone { top: 60%; }
   .game-footer { height: 42px; }
 }
+
 
 
 
@@ -3099,7 +3114,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       const light = Math.max(0, dot(item.n, norm(v(-0.45, 0.8, 0.55))));
       const shade = 0.64 + light * 0.32;
       ctx.fillStyle = 'rgb(' + Math.round(242 * shade) + ',' + Math.round(232 * shade) + ',' + Math.round(205 * shade) + ')';
-      roundedPath(ctx, item.corners, 7);
+      roundedPath(ctx, item.corners, 9);
       ctx.fill();
       ctx.strokeStyle = 'rgba(108, 84, 49, 0.36)';
       ctx.lineWidth = 1.1;
@@ -3110,7 +3125,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
         return cam.project(add(center, add(mul(item.u, (i === 0 || i === 3 ? 1 : -1) * S * s), mul(item.vv, (i < 2 ? 1 : -1) * S * s))));
       });
       ctx.fillStyle = 'rgba(255, 251, 235, 0.18)';
-      roundedPath(ctx, inset, 5);
+      roundedPath(ctx, inset, 6);
       ctx.fill();
       ctx.strokeStyle = 'rgba(115, 88, 50, 0.2)';
       ctx.lineWidth = 0.8;
@@ -3157,18 +3172,14 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     const diceState = [0, 1, 2, 3, 4].map((i) => ({
       index: i,
       S: S,
-      pos: v((i - 2) * 0.7, 3.2 + i * 0.14, (i % 2 ? -0.14 : 0.12)),
-      vel: v((i - 2) * 0.12, 1.2 + (i % 3) * 0.25, (i % 2 ? -0.1 : 0.08)),
+      pos: v((i - 2) * 0.68, 3.2 + i * 0.14, (i % 2 ? -0.12 : 0.1)),
+      vel: v((i - 2) * 0.06, 1.2 + (i % 3) * 0.25, (i % 2 ? -0.08 : 0.06)),
       q: qNorm(qAxis(norm(v(0.7 + i * 0.11, 1, 0.35 + i * 0.09)), 0.5 + i * 0.14)),
       omega: v(4.8 + i * 0.42, 3.1 + i * 0.35, 3.9 + i * 0.27),
-      targetX: (i - 2) * 0.7,
-      targetZ: 0,
-      targetQ: null,
       resultValue: 1
     }));
     let last = performance.now();
     let started = last;
-    let settleAt = 0;
     let restAt = 0;
     let raf = 0;
     let done = false;
@@ -3181,7 +3192,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       return S * (Math.abs(ax.y) + Math.abs(ay.y) + Math.abs(az.y));
     }
 
-    function flatTarget(d) {
+    function topFace(d) {
       const faces = faceDefs();
       let best = null;
       let bestY = -2;
@@ -3189,90 +3200,95 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
         const n = qRot(d.q, f.n);
         if (n.y > bestY) { bestY = n.y; best = { f, n }; }
       }
-      const up = v(0, 1, 0);
-      const axis = cross(best.n, up);
-      const angle = Math.acos(Math.max(-1, Math.min(1, best.n.y)));
-      const delta = len(axis) < 0.0001 ? { x: 0, y: 0, z: 0, w: 1 } : qAxis(norm(axis), angle);
-      return {
-        q: qMul(delta, d.q),
-        value: best.f.value
-      };
+      return best;
     }
 
     function tick(now) {
       if (done) return;
       const dt = Math.min(0.032, Math.max(0.001, (now - last) / 1000));
       last = now;
-      if (!settleAt) {
-        for (const d of diceState) {
-          d.vel.y += GRAVITY * dt;
-          d.pos = add(d.pos, mul(d.vel, dt));
-          integrate(d.q, d.omega, dt);
-          d.omega = mul(d.omega, 1 - 0.18 * dt);
-          const s = support(d);
-          if (d.pos.y < s) {
-            d.pos.y = s;
-            d.vel.y = -d.vel.y * 0.35;
-            d.vel.x *= 0.72;
-            d.vel.z *= 0.72;
-            d.omega = mul(d.omega, 0.7);
-          }
+
+      for (const d of diceState) {
+        d.vel.y += GRAVITY * dt;
+        d.pos = add(d.pos, mul(d.vel, dt));
+        integrate(d.q, d.omega, dt);
+        d.omega = mul(d.omega, 1 - 0.38 * dt);
+        const s = support(d);
+        let contact = false;
+        if (d.pos.y < s) {
+          d.pos.y = s;
+          contact = true;
+          if (d.vel.y < -25) d.vel.y = -d.vel.y * 0.32;
+          else d.vel.y = 0;
+          d.vel.x *= Math.pow(0.04, dt);
+          d.vel.z *= Math.pow(0.04, dt);
+          d.omega = mul(d.omega, Math.pow(0.18, dt));
         }
-        // Cheap but effective sphere separation stops the cubes visibly
-        // interpenetrating while they bounce.
-        for (let i = 0; i < diceState.length; i++) {
-          for (let j = i + 1; j < diceState.length; j++) {
-            const a = diceState[i];
-            const b = diceState[j];
-            const delta = sub(b.pos, a.pos);
-            const dist = len(delta) || 0.001;
-            const minDist = S * 2.02;
-            if (dist < minDist) {
-              const n = mul(delta, 1 / dist);
-              const push = (minDist - dist) * 0.5;
-              a.pos = sub(a.pos, mul(n, push));
-              b.pos = add(b.pos, mul(n, push));
-              const rel = dot(sub(b.vel, a.vel), n);
-              if (rel < 0) {
-                const impulse = -rel * 0.5;
-                a.vel = sub(a.vel, mul(n, impulse));
-                b.vel = add(b.vel, mul(n, impulse));
-              }
-            }
-          }
-        }
-        if (now - started > 2200) {
-          settleAt = now;
-          for (const d of diceState) {
-            d.startQ = { x: d.q.x, y: d.q.y, z: d.q.z, w: d.q.w };
-            d.startPos = { x: d.pos.x, y: d.pos.y, z: d.pos.z };
-            const target = flatTarget(d);
-            d.targetQ = target.q;
-            d.resultValue = target.value;
-          }
-        }
-      } else {
-        const p = Math.min(1, (now - settleAt) / 900);
-        const e = p * p * (3 - 2 * p);
-        for (const d of diceState) {
-          d.q = qSlerp(d.startQ, d.targetQ, e);
-          d.pos = {
-            x: d.startPos.x + (d.targetX - d.startPos.x) * e,
-            y: d.startPos.y + (S * 0.96 - d.startPos.y) * e,
-            z: d.startPos.z + (d.targetZ - d.startPos.z) * e
-          };
-          if (p >= 1) { d.q = d.targetQ; d.pos = v(d.targetX, S * 0.96, d.targetZ); }
-        }
-        if (p >= 1) {
-          if (!restAt) restAt = now;
-          if (now - restAt > 450) {
-            done = true;
-            draw();
-            if (opts.onDone) opts.onDone(diceState.map(d => d.resultValue));
-            return;
+        if (contact && len(d.omega) < 14) {
+          const top = topFace(d);
+          const axis = cross(top.n, v(0, 1, 0));
+          if (len(axis) > 0.0001) {
+            const angle = Math.acos(Math.max(-1, Math.min(1, top.n.y)));
+            const nudged = mul(norm(axis), Math.min(1.6, angle * 5) * dt * 4.2);
+            d.omega = add(d.omega, nudged);
           }
         }
       }
+
+      for (let i = 0; i < diceState.length; i++) {
+        for (let j = i + 1; j < diceState.length; j++) {
+          const a = diceState[i];
+          const b = diceState[j];
+          const delta = sub(b.pos, a.pos);
+          const dist = len(delta) || 0.001;
+          const minDist = S * 2.02;
+          if (dist < minDist) {
+            const n = mul(delta, 1 / dist);
+            const push = (minDist - dist) * 0.5;
+            a.pos = sub(a.pos, mul(n, push));
+            b.pos = add(b.pos, mul(n, push));
+            const rel = dot(sub(b.vel, a.vel), n);
+            if (rel < 0) {
+              const impulse = -rel * 0.5;
+              a.vel = sub(a.vel, mul(n, impulse));
+              b.vel = add(b.vel, mul(n, impulse));
+            }
+          }
+        }
+      }
+
+      let allRest = true;
+      for (const d of diceState) {
+        const top = topFace(d);
+        const s = support(d);
+        const still = len(d.vel) < 0.12 && len(d.omega) < 0.16;
+        if (!(top.n.y > 0.995 && still && Math.abs(d.pos.y - s) < 0.003)) {
+          allRest = false;
+          break;
+        }
+      }
+      if (allRest && now - started > 800) {
+        if (!restAt) restAt = now;
+        if (now - restAt > 520) {
+          done = true;
+          for (const d of diceState) d.resultValue = topFace(d).f.value;
+          draw();
+          if (opts.onDone) opts.onDone(diceState.map(d => d.resultValue));
+          return;
+        }
+      } else {
+        restAt = 0;
+      }
+
+      // Safety valve: freeze whatever face is up after a long natural roll.
+      if (now - started > 7500) {
+        done = true;
+        for (const d of diceState) d.resultValue = topFace(d).f.value;
+        draw();
+        if (opts.onDone) opts.onDone(diceState.map(d => d.resultValue));
+        return;
+      }
+
       draw();
       raf = requestAnimationFrame(tick);
     }
@@ -3881,6 +3897,21 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.diceRaf = requestAnimationFrame(frame);
   }
 
+  function addParticlesAt(x, y, count) {
+    for (let k = 0; k < count; k++) {
+      const p = document.createElement('span');
+      p.className = 'particle';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 24 + Math.random() * 68;
+      p.style.left = x + 'px';
+      p.style.top = y + 'px';
+      p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--dy', (Math.sin(angle) * dist - 30) + 'px');
+      p.style.animationDelay = (Math.random() * 0.12) + 's';
+      dom.particles.appendChild(p);
+    }
+  }
+
   function spawnParticles() {
     const rect = dom.game.getBoundingClientRect();
     dom.particles.innerHTML = '';
@@ -3890,28 +3921,30 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       const r = el.getBoundingClientRect();
       anchors.push([r.left - rect.left + r.width / 2, r.top - rect.top + r.height / 2]);
     });
-    if (!anchors.length) anchors.push([rect.width / 2, rect.height * 0.64]);
-    for (const [x, y] of anchors) {
-      for (let k = 0; k < 8; k++) {
-        const p = document.createElement('span');
-        p.className = 'particle';
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 24 + Math.random() * 68;
-        p.style.left = x + 'px';
-        p.style.top = y + 'px';
-        p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
-        p.style.setProperty('--dy', (Math.sin(angle) * dist - 30) + 'px');
-        p.style.animationDelay = (Math.random() * 0.12) + 's';
-        dom.particles.appendChild(p);
-      }
-    }
+    if (!anchors.length) anchors.push([rect.width / 2, rect.height * 0.5]);
+    for (const [x, y] of anchors) addParticlesAt(x, y, 8);
     setTimeout(() => { dom.particles.innerHTML = ''; }, 1500);
   }
 
   function dissolveTableDice() {
-    if (!dom.tableDice.querySelector('.die')) return;
-    spawnParticles();
-    dom.tableDice.innerHTML = '';
+    const dice = Array.from(dom.tableDice.querySelectorAll('.die'));
+    if (!dice.length) return;
+    const gameRect = dom.game.getBoundingClientRect();
+    dom.particles.innerHTML = '';
+    dice.forEach(el => el.classList.add('is-dissolving'));
+    let wave = 0;
+    const timer = setInterval(() => {
+      if (wave >= 6) { clearInterval(timer); return; }
+      dice.forEach(el => {
+        const r = el.getBoundingClientRect();
+        const x = r.left - gameRect.left + r.width / 2;
+        const y = r.top - gameRect.top + r.height * (wave / 6) + 4;
+        addParticlesAt(x, y, 3);
+      });
+      wave++;
+    }, 110);
+    setTimeout(() => { dom.tableDice.innerHTML = ''; }, 900);
+    setTimeout(() => { dom.particles.innerHTML = ''; }, 1800);
   }
 
   /* ------------------------------- paper UI ------------------------------- */
@@ -4354,8 +4387,14 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     later(620, () => { if (S.turnToken === token) setupAdjust(); });
   }
 
-  function setupAdjust() {
-    dissolveTableDice();
+  function setupAdjust(skipDissolve) {
+    if (!skipDissolve && dom.tableDice.querySelector('.die')) {
+      dissolveTableDice();
+      setTimeout(() => {
+        if (S.phase === 'fixed') setupAdjust(true);
+      }, 960);
+      return;
+    }
     const fixed = S.fixed.slice().sort((a, b) => a - b);
     const fixedValues = fixed.map(i => S.dice[i]);
     const remaining = S.dice.map((_, i) => i).filter(i => !fixed.includes(i));

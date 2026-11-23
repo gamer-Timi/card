@@ -432,7 +432,7 @@
       const light = Math.max(0, dot(item.n, norm(v(-0.45, 0.8, 0.55))));
       const shade = 0.64 + light * 0.32;
       ctx.fillStyle = 'rgb(' + Math.round(242 * shade) + ',' + Math.round(232 * shade) + ',' + Math.round(205 * shade) + ')';
-      roundedPath(ctx, item.corners, 7);
+      roundedPath(ctx, item.corners, 9);
       ctx.fill();
       ctx.strokeStyle = 'rgba(108, 84, 49, 0.36)';
       ctx.lineWidth = 1.1;
@@ -443,7 +443,7 @@
         return cam.project(add(center, add(mul(item.u, (i === 0 || i === 3 ? 1 : -1) * S * s), mul(item.vv, (i < 2 ? 1 : -1) * S * s))));
       });
       ctx.fillStyle = 'rgba(255, 251, 235, 0.18)';
-      roundedPath(ctx, inset, 5);
+      roundedPath(ctx, inset, 6);
       ctx.fill();
       ctx.strokeStyle = 'rgba(115, 88, 50, 0.2)';
       ctx.lineWidth = 0.8;
@@ -490,18 +490,14 @@
     const diceState = [0, 1, 2, 3, 4].map((i) => ({
       index: i,
       S: S,
-      pos: v((i - 2) * 0.7, 3.2 + i * 0.14, (i % 2 ? -0.14 : 0.12)),
-      vel: v((i - 2) * 0.12, 1.2 + (i % 3) * 0.25, (i % 2 ? -0.1 : 0.08)),
+      pos: v((i - 2) * 0.68, 3.2 + i * 0.14, (i % 2 ? -0.12 : 0.1)),
+      vel: v((i - 2) * 0.06, 1.2 + (i % 3) * 0.25, (i % 2 ? -0.08 : 0.06)),
       q: qNorm(qAxis(norm(v(0.7 + i * 0.11, 1, 0.35 + i * 0.09)), 0.5 + i * 0.14)),
       omega: v(4.8 + i * 0.42, 3.1 + i * 0.35, 3.9 + i * 0.27),
-      targetX: (i - 2) * 0.7,
-      targetZ: 0,
-      targetQ: null,
       resultValue: 1
     }));
     let last = performance.now();
     let started = last;
-    let settleAt = 0;
     let restAt = 0;
     let raf = 0;
     let done = false;
@@ -514,7 +510,7 @@
       return S * (Math.abs(ax.y) + Math.abs(ay.y) + Math.abs(az.y));
     }
 
-    function flatTarget(d) {
+    function topFace(d) {
       const faces = faceDefs();
       let best = null;
       let bestY = -2;
@@ -522,90 +518,95 @@
         const n = qRot(d.q, f.n);
         if (n.y > bestY) { bestY = n.y; best = { f, n }; }
       }
-      const up = v(0, 1, 0);
-      const axis = cross(best.n, up);
-      const angle = Math.acos(Math.max(-1, Math.min(1, best.n.y)));
-      const delta = len(axis) < 0.0001 ? { x: 0, y: 0, z: 0, w: 1 } : qAxis(norm(axis), angle);
-      return {
-        q: qMul(delta, d.q),
-        value: best.f.value
-      };
+      return best;
     }
 
     function tick(now) {
       if (done) return;
       const dt = Math.min(0.032, Math.max(0.001, (now - last) / 1000));
       last = now;
-      if (!settleAt) {
-        for (const d of diceState) {
-          d.vel.y += GRAVITY * dt;
-          d.pos = add(d.pos, mul(d.vel, dt));
-          integrate(d.q, d.omega, dt);
-          d.omega = mul(d.omega, 1 - 0.18 * dt);
-          const s = support(d);
-          if (d.pos.y < s) {
-            d.pos.y = s;
-            d.vel.y = -d.vel.y * 0.35;
-            d.vel.x *= 0.72;
-            d.vel.z *= 0.72;
-            d.omega = mul(d.omega, 0.7);
-          }
+
+      for (const d of diceState) {
+        d.vel.y += GRAVITY * dt;
+        d.pos = add(d.pos, mul(d.vel, dt));
+        integrate(d.q, d.omega, dt);
+        d.omega = mul(d.omega, 1 - 0.38 * dt);
+        const s = support(d);
+        let contact = false;
+        if (d.pos.y < s) {
+          d.pos.y = s;
+          contact = true;
+          if (d.vel.y < -25) d.vel.y = -d.vel.y * 0.32;
+          else d.vel.y = 0;
+          d.vel.x *= Math.pow(0.04, dt);
+          d.vel.z *= Math.pow(0.04, dt);
+          d.omega = mul(d.omega, Math.pow(0.18, dt));
         }
-        // Cheap but effective sphere separation stops the cubes visibly
-        // interpenetrating while they bounce.
-        for (let i = 0; i < diceState.length; i++) {
-          for (let j = i + 1; j < diceState.length; j++) {
-            const a = diceState[i];
-            const b = diceState[j];
-            const delta = sub(b.pos, a.pos);
-            const dist = len(delta) || 0.001;
-            const minDist = S * 2.02;
-            if (dist < minDist) {
-              const n = mul(delta, 1 / dist);
-              const push = (minDist - dist) * 0.5;
-              a.pos = sub(a.pos, mul(n, push));
-              b.pos = add(b.pos, mul(n, push));
-              const rel = dot(sub(b.vel, a.vel), n);
-              if (rel < 0) {
-                const impulse = -rel * 0.5;
-                a.vel = sub(a.vel, mul(n, impulse));
-                b.vel = add(b.vel, mul(n, impulse));
-              }
-            }
-          }
-        }
-        if (now - started > 2200) {
-          settleAt = now;
-          for (const d of diceState) {
-            d.startQ = { x: d.q.x, y: d.q.y, z: d.q.z, w: d.q.w };
-            d.startPos = { x: d.pos.x, y: d.pos.y, z: d.pos.z };
-            const target = flatTarget(d);
-            d.targetQ = target.q;
-            d.resultValue = target.value;
-          }
-        }
-      } else {
-        const p = Math.min(1, (now - settleAt) / 900);
-        const e = p * p * (3 - 2 * p);
-        for (const d of diceState) {
-          d.q = qSlerp(d.startQ, d.targetQ, e);
-          d.pos = {
-            x: d.startPos.x + (d.targetX - d.startPos.x) * e,
-            y: d.startPos.y + (S * 0.96 - d.startPos.y) * e,
-            z: d.startPos.z + (d.targetZ - d.startPos.z) * e
-          };
-          if (p >= 1) { d.q = d.targetQ; d.pos = v(d.targetX, S * 0.96, d.targetZ); }
-        }
-        if (p >= 1) {
-          if (!restAt) restAt = now;
-          if (now - restAt > 450) {
-            done = true;
-            draw();
-            if (opts.onDone) opts.onDone(diceState.map(d => d.resultValue));
-            return;
+        if (contact && len(d.omega) < 14) {
+          const top = topFace(d);
+          const axis = cross(top.n, v(0, 1, 0));
+          if (len(axis) > 0.0001) {
+            const angle = Math.acos(Math.max(-1, Math.min(1, top.n.y)));
+            const nudged = mul(norm(axis), Math.min(1.6, angle * 5) * dt * 4.2);
+            d.omega = add(d.omega, nudged);
           }
         }
       }
+
+      for (let i = 0; i < diceState.length; i++) {
+        for (let j = i + 1; j < diceState.length; j++) {
+          const a = diceState[i];
+          const b = diceState[j];
+          const delta = sub(b.pos, a.pos);
+          const dist = len(delta) || 0.001;
+          const minDist = S * 2.02;
+          if (dist < minDist) {
+            const n = mul(delta, 1 / dist);
+            const push = (minDist - dist) * 0.5;
+            a.pos = sub(a.pos, mul(n, push));
+            b.pos = add(b.pos, mul(n, push));
+            const rel = dot(sub(b.vel, a.vel), n);
+            if (rel < 0) {
+              const impulse = -rel * 0.5;
+              a.vel = sub(a.vel, mul(n, impulse));
+              b.vel = add(b.vel, mul(n, impulse));
+            }
+          }
+        }
+      }
+
+      let allRest = true;
+      for (const d of diceState) {
+        const top = topFace(d);
+        const s = support(d);
+        const still = len(d.vel) < 0.12 && len(d.omega) < 0.16;
+        if (!(top.n.y > 0.995 && still && Math.abs(d.pos.y - s) < 0.003)) {
+          allRest = false;
+          break;
+        }
+      }
+      if (allRest && now - started > 800) {
+        if (!restAt) restAt = now;
+        if (now - restAt > 520) {
+          done = true;
+          for (const d of diceState) d.resultValue = topFace(d).f.value;
+          draw();
+          if (opts.onDone) opts.onDone(diceState.map(d => d.resultValue));
+          return;
+        }
+      } else {
+        restAt = 0;
+      }
+
+      // Safety valve: freeze whatever face is up after a long natural roll.
+      if (now - started > 7500) {
+        done = true;
+        for (const d of diceState) d.resultValue = topFace(d).f.value;
+        draw();
+        if (opts.onDone) opts.onDone(diceState.map(d => d.resultValue));
+        return;
+      }
+
       draw();
       raf = requestAnimationFrame(tick);
     }
