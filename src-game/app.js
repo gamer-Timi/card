@@ -362,6 +362,12 @@
     const selfRole = document.querySelector('.hud-player--you .hud-role');
     if (oppRole) oppRole.textContent = S.online ? S.online.otherId : 'B';
     if (selfRole) selfRole.textContent = S.online ? S.online.selfId : 'A';
+    if (S.online) {
+      const oppTag = document.querySelector('.player-tag--opponent');
+      const selfTag = document.querySelector('.player-tag--you');
+      if (oppTag && oppTag.lastChild) oppTag.lastChild.nodeValue = S.online.otherId + ' 区域';
+      if (selfTag && selfTag.lastChild) selfTag.lastChild.nodeValue = S.online.selfId + ' 区域';
+    }
     dom.hudRound.textContent = '第 ' + roundNumber() + ' / 11 回合';
     dom.footerTurn.textContent = '第 ' + roundNumber() + ' / 11 回合';
     let phaseText = PHASE_LABEL[S.phase] || '等待开局';
