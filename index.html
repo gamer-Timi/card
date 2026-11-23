@@ -3466,6 +3466,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     coinAnim: null,
     coinHandler: null,
     coinTimeout: null,
+    coinReady: false,
+    diceReady: false,
+    coinRequestId: null,
+    coinFallback: false,
+    pendingDiceRequest: null,
+    pendingDiceToken: 0,
+    pendingDiceTimer: null,
     diceAnim: null,
     dicePoll: null,
     diceRaw: [],
@@ -3553,6 +3560,52 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     btnAgain: $('btnAgain'),
     btnResultMenu: $('btnResultMenu')
   };
+
+  function postToDice(message) {
+    try {
+      if (dom.diceFrame && dom.diceFrame.contentWindow) {
+        dom.diceFrame.contentWindow.postMessage(message, '*');
+        return true;
+      }
+    } catch (err) { }
+    return false;
+  }
+
+  function postToCoin(message) {
+    try {
+      if (dom.coinFrame && dom.coinFrame.contentWindow) {
+        dom.coinFrame.contentWindow.postMessage(message, '*');
+        return true;
+      }
+    } catch (err) { }
+    return false;
+  }
+
+  function onCrossFrameMessage(event) {
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'coin-ready') { S.coinReady = true; return; }
+    if (data.type === 'dice-ready') { S.diceReady = true; return; }
+    if (data.type === 'dice-settled') {
+      if (!S.pendingDiceRequest || data.requestId !== S.pendingDiceRequest) return;
+      const token = S.pendingDiceToken;
+      S.pendingDiceRequest = null;
+      if (S.pendingDiceTimer) { clearTimeout(S.pendingDiceTimer); S.pendingDiceTimer = null; }
+      const values = (Array.isArray(data.values) ? data.values : []).filter(v => Number.isFinite(v)).slice(0, 5);
+      if (values.length !== 5 || S.turnToken !== token) return;
+      S.usingDiceFrame = true;
+      if (S.online) S.online.remoteRolling = false;
+      afterRoll(values, token, true);
+    }
+  }
+
+  window.addEventListener('message', onCrossFrameMessage);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) return;
+    if (S.phase === 'coin') postToCoin({ type: 'coin-finish' });
+    if (S.phase === 'rolling') postToDice({ type: 'dice-finish' });
+  });
 
   /* ------------------------------- utilities ------------------------------ */
   function cryptoRandom() {
@@ -4240,17 +4293,21 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     const query = forcedFace ? ('&face=' + forcedFace) : ('&seed=' + seed);
     dom.game.classList.add('is-coining');
     dom.coinFrame.classList.add('is-active');
-    const coinWin = dom.coinFrame.contentWindow;
-    const coinApi = coinWin && coinWin.__coin;
-    if (coinApi && typeof coinApi.start === 'function') {
-      try { coinApi.start(seed); } catch (err) { dom.coinFrame.src = 'coin-game.html?embed=1' + query + '&t=' + Date.now(); }
-    } else {
+    const requestId = 'c' + token + '_' + Date.now();
+    S.coinRequestId = requestId;
+    S.coinFallback = false;
+    let sent = false;
+    if (S.coinReady) sent = postToCoin({ type: 'coin-start', seed, requestId });
+    if (!sent) {
+      S.coinFallback = true;
       dom.coinFrame.src = 'coin-game.html?embed=1' + query + '&t=' + Date.now();
     }
 
     const handler = event => {
       const data = event.data;
       if (!data || data.type !== 'coin-toss-result') return;
+      if (data.requestId && data.requestId !== S.coinRequestId) return;
+      if (!data.requestId && !S.coinFallback) return;
       const tossed = data.face === 'heads' ? 'A' : 'B';
       if (S.online) handleOnlineCoin(tossed, token);
       else finishCoin(tossed, token);
@@ -4387,28 +4444,26 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     }
     if (S.dicePoll) { clearInterval(S.dicePoll); S.dicePoll = null; }
 
-    const frameWin = dom.diceFrame && dom.diceFrame.contentWindow;
-    const frameApi = frameWin && frameWin.__diceGame;
-    if (!TEST_MODE && !forced && frameApi) {
+    if (!TEST_MODE && !forced && dom.diceFrame && S.diceReady) {
       S.usingDiceFrame = true;
       dom.game.classList.remove('is-dom-dice');
       dom.tableDice.innerHTML = '';
-      try { frameApi.roll(onlineSeed); } catch (err) { /* fall back below */ }
-      let waited = 0;
-      S.dicePoll = setInterval(() => {
-        if (S.turnToken !== token) { clearInterval(S.dicePoll); S.dicePoll = null; return; }
-        waited += 120;
-        let snap = null;
-        try { snap = frameApi.snapshot(); } catch (err) { }
-        if (snap && snap.phase === 'settled' && snap.values && snap.values.length === 5) {
-          clearInterval(S.dicePoll); S.dicePoll = null;
-          afterRoll(snap.values.slice(), token, true);
-        } else if (waited > 16000) {
-          clearInterval(S.dicePoll); S.dicePoll = null;
-          startRollDomFallback(token);
-        }
-      }, 120);
-      return;
+      const requestId = 'd' + token + '_' + Date.now();
+      S.pendingDiceRequest = requestId;
+      S.pendingDiceToken = token;
+      const seed = onlineActive ? onlineSeed : ((cryptoRandom() * 0xffffffff) >>> 0);
+      const sent = postToDice({ type: 'dice-roll', seed, requestId });
+      if (sent) {
+        if (S.pendingDiceTimer) clearTimeout(S.pendingDiceTimer);
+        S.pendingDiceTimer = setTimeout(() => {
+          if (S.pendingDiceRequest === requestId) {
+            S.pendingDiceRequest = null;
+            startRollDomFallback(token);
+          }
+        }, 14000);
+        return;
+      }
+      S.pendingDiceRequest = null;
     }
 
     S.usingDiceFrame = false;
@@ -4647,13 +4702,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   function setupAdjust(skipDissolve) {
     if (!skipDissolve) {
       if (S.usingDiceFrame) {
-        const frameWin = dom.diceFrame && dom.diceFrame.contentWindow;
-        const api = frameWin && frameWin.__diceGame;
-        if (api) {
-          const rawFixed = S.fixed.map(i => (S.diceMap[i] == null ? i : S.diceMap[i]));
-          const rawRemaining = (S.diceRaw || []).map((_, i) => i).filter(i => !rawFixed.includes(i));
-          try { api.dissolve(rawRemaining); } catch (err) { }
-        }
+        const rawFixed = S.fixed.map(i => (S.diceMap[i] == null ? i : S.diceMap[i]));
+        const rawRemaining = (S.diceRaw || []).map((_, i) => i).filter(i => !rawFixed.includes(i));
+        postToDice({ type: 'dice-dissolve', indices: rawRemaining });
         setTimeout(() => {
           if (S.phase === 'fixed') setupAdjust(true);
         }, 1020);
@@ -4882,11 +4933,10 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       closeOverlay(dom.diceOverlay);
       S.phase = 'reveal';
       if (S.usingDiceFrame) {
-        const api = dom.diceFrame && dom.diceFrame.contentWindow && dom.diceFrame.contentWindow.__diceGame;
         const faces = buildFinalFaces(final);
         dom.game.classList.remove('is-final-dice');
         dom.tableDice.innerHTML = '';
-        if (api && typeof api.reveal === 'function') { try { api.reveal(faces); } catch (err) { } }
+        postToDice({ type: 'dice-reveal', faces });
       } else {
         dom.game.classList.add('is-final-dice');
         renderTableDice(final);
@@ -4997,11 +5047,10 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.finalDice = final.slice();
     closeOverlay(dom.diceOverlay);
     S.phase = 'reveal';
-    const api = dom.diceFrame && dom.diceFrame.contentWindow && dom.diceFrame.contentWindow.__diceGame;
-    if (S.usingDiceFrame && api && typeof api.reveal === 'function') {
+    if (S.usingDiceFrame) {
       dom.game.classList.remove('is-final-dice');
       dom.tableDice.innerHTML = '';
-      try { api.reveal(faces || {}); } catch (err) { }
+      postToDice({ type: 'dice-reveal', faces: faces || {} });
     } else {
       dom.game.classList.add('is-final-dice');
       renderTableDice(final);
@@ -5659,38 +5708,26 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   function startRemoteOnlineRoll(seed) {
     if (!S.online || S.active === 0) return;
     if (S.online.remoteSeed === seed && S.online.remoteRolling) return;
-    const frameWin = dom.diceFrame && dom.diceFrame.contentWindow;
-    const api = frameWin && frameWin.__diceGame;
-    if (!api) return;
+    if (!dom.diceFrame || !S.diceReady) return;
     S.online.remoteSeed = seed;
     S.online.remoteRolling = true;
     S.usingDiceFrame = true;
     dom.game.classList.remove('is-dom-dice');
-    try { api.roll(seed); } catch (err) { return; }
     const token = S.turnToken;
-    let waited = 0;
-    if (S.dicePoll) clearInterval(S.dicePoll);
-    S.dicePoll = setInterval(() => {
-      if (!S.online || S.turnToken !== token) { clearInterval(S.dicePoll); S.dicePoll = null; return; }
-      waited += 120;
-      let snap = null;
-      try { snap = api.snapshot(); } catch (err) { }
-      if (snap && snap.phase === 'settled' && snap.values && snap.values.length === 5) {
-        clearInterval(S.dicePoll); S.dicePoll = null;
-        S.online.remoteRolling = false;
-        const raw = snap.values.slice();
-        const order = raw.map((v, i) => i).sort((a, b) => raw[a] - raw[b] || a - b);
-        S.diceRaw = raw;
-        S.diceMap = order;
-        S.dice = order.map(i => raw[i]);
-        S.phase = 'rolled';
-        dom.tableStatus.textContent = '已投出 · 等待' + S.online.otherId + '固定';
-        updateHUD();
-      } else if (waited > 16000) {
-        clearInterval(S.dicePoll); S.dicePoll = null;
-        S.online.remoteRolling = false;
+    const requestId = 'r' + token + '_' + Date.now();
+    S.pendingDiceRequest = requestId;
+    S.pendingDiceToken = token;
+    if (!postToDice({ type: 'dice-roll', seed, requestId })) {
+      S.pendingDiceRequest = null;
+      return;
+    }
+    if (S.pendingDiceTimer) clearTimeout(S.pendingDiceTimer);
+    S.pendingDiceTimer = setTimeout(() => {
+      if (S.pendingDiceRequest === requestId) {
+        S.pendingDiceRequest = null;
+        if (S.online) S.online.remoteRolling = false;
       }
-    }, 120);
+    }, 16000);
   }
 
   function applyOnlineState(st) {
@@ -5740,11 +5777,10 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
           S.phase = 'fixed';
           S.fixedRaw = (st.fixedRaw || []).slice();
           S.fixed = (st.fixed || []).slice();
-          const api = dom.diceFrame && dom.diceFrame.contentWindow && dom.diceFrame.contentWindow.__diceGame;
-          if (api && S.online.remoteSeed !== null) {
+          if (S.online.remoteSeed !== null) {
             const fixedSet = new Set(S.fixedRaw || []);
             const remaining = (st.diceRaw || []).map((_, i) => i).filter(i => !fixedSet.has(i));
-            try { api.dissolve(remaining); } catch (err) { }
+            postToDice({ type: 'dice-dissolve', indices: remaining });
           }
           dom.tableStatus.textContent = S.online.otherId + '已固定 ' + S.fixedRaw.length + ' 颗骰子';
         } else {

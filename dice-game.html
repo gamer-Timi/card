@@ -14773,6 +14773,9 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
 
   function revealResult(values, token) {
     if (state.token !== token) return;
+    if (window.parent && window.parent !== window) {
+      try { parent.postMessage({ type: 'dice-settled', values: values.slice(), requestId: window.__diceRequestId || null }, '*'); } catch (err) { }
+    }
     const sum = values.reduce((a, b) => a + b, 0);
     els.statusPill.classList.add('is-settled');
     els.statusText.textContent = '已落定';
@@ -14898,6 +14901,16 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     requestAnimationFrame(tick);
   }
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state.frames && (state.phase === 'rolling' || state.phase === 'settling')) {
+      state.t = state.duration;
+      state.phase = 'settled';
+      state.paused = true;
+      state.settleAt = 0;
+      revealResult(state.values, state.token);
+    }
+  });
+
   /* ------------------------------- controls ------------------------------- */
   function canRoll() {
     return state.phase === 'settled';
@@ -15018,6 +15031,31 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
       const bounds = dieScreenBounds(poses[index]);
       revealState.set(index, { start: now, duration: 900, bounds });
     }
+  }
+
+  window.addEventListener('message', event => {
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'dice-roll') {
+      window.__diceRequestId = data.requestId || null;
+      resetDissolve();
+      startRoll(data.seed);
+    } else if (data.type === 'dice-dissolve') {
+      gameDissolve(Array.isArray(data.indices) ? data.indices : []);
+    } else if (data.type === 'dice-reveal') {
+      gameReveal(data.faces || {});
+    } else if (data.type === 'dice-finish') {
+      if (state.frames && state.phase !== 'settled') {
+        state.t = state.duration;
+        state.phase = 'settled';
+        state.paused = true;
+        revealResult(state.values, state.token);
+      }
+    }
+  });
+
+  if (window.parent && window.parent !== window) {
+    try { parent.postMessage({ type: 'dice-ready' }, '*'); } catch (err) { }
   }
 
   window.__diceGame = {

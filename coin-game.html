@@ -13707,7 +13707,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   const FORCE_FACE = COIN_FACE === 'heads' || COIN_FACE === 'tails' ? COIN_FACE : null;
   const COIN_SEED_PARAM = COIN_PARAMS.get('seed');
   const COIN_SEED = COIN_SEED_PARAM === null ? null : (Number(COIN_SEED_PARAM) >>> 0);
-  const COIN_SPEED = 1.35;
+  const COIN_SPEED = 1.5;
 
   if (COIN_EMBED) {
     document.body.classList.add('coin-embed');
@@ -13949,7 +13949,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
 
   function makeRoll(baseSeed) {
     let last = null;
-    const attempts = FORCE_FACE ? 400 : 36;
+    const attempts = FORCE_FACE ? 120 : 10;
     for (let attempt = 0; attempt < attempts; attempt++) {
       const seed = (baseSeed + attempt * 0x9e3779b9) >>> 0;
       const sim = simulateRoll(seed);
@@ -14652,7 +14652,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     els.resultTitle.textContent = heads ? 'A 先手' : 'B 先手';
     els.resultSub.textContent = heads ? 'A · PLAYER A' : 'B · PLAYER B';
     if (window.parent && window.parent !== window) {
-      try { parent.postMessage({ type: 'coin-toss-result', face: heads ? 'heads' : 'tails' }, '*'); } catch (err) { }
+      try { parent.postMessage({ type: 'coin-toss-result', face: heads ? 'heads' : 'tails', requestId: window.__coinRequestId || null }, '*'); } catch (err) { }
     }
     els.button.disabled = false;
     els.button.classList.remove('is-rolling');
@@ -14730,6 +14730,16 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     requestAnimationFrame(tick);
   }
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state.frames && (state.phase === 'rolling' || state.phase === 'settling')) {
+      state.t = state.duration;
+      state.phase = 'settled';
+      state.paused = true;
+      state.settleAt = 0;
+      revealResult({ final: state.final }, state.token);
+    }
+  });
+
   /* ------------------------------- controls ------------------------------- */
   function canRoll() { return state.phase === 'settled'; }
 
@@ -14756,6 +14766,26 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   }
 
   /* -------------------------------- debug --------------------------------- */
+  window.addEventListener('message', event => {
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+    if (data.type === 'coin-start') {
+      window.__coinRequestId = data.requestId || null;
+      startRoll(data.seed);
+    } else if (data.type === 'coin-finish') {
+      if (state.frames && state.phase !== 'settled') {
+        state.t = state.duration;
+        state.phase = 'settled';
+        state.paused = true;
+        revealResult({ final: state.final }, state.token);
+      }
+    }
+  });
+
+  if (window.parent && window.parent !== window) {
+    try { parent.postMessage({ type: 'coin-ready' }, '*'); } catch (err) { }
+  }
+
   window.__coin = {
     start(seed) { startRoll(seed); },
     pause() { state.paused = true; },
