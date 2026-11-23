@@ -2100,3 +2100,6 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .screen--game.is-dom-dice .dice-frame { display: none; }
 
 
+.screen--game.is-final-dice .table-dice { display: flex; }
+.screen--game.is-final-dice .dice-frame { opacity: 0; }
+.screen--game.is-final-dice .center-zone { top: 54% !important; bottom: auto; }

@@ -9,10 +9,10 @@
     (location.hash.startsWith('#preview=') ? location.hash.slice(9) : null);
   const CLIENT_ID = (() => {
     try {
-      let id = localStorage.getItem('timicard_client_id');
+      let id = sessionStorage.getItem('timicard_client_id');
       if (!id) {
         id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-        localStorage.setItem('timicard_client_id', id);
+        sessionStorage.setItem('timicard_client_id', id);
       }
       return id;
     } catch (err) {
@@ -97,6 +97,7 @@
     usingDiceFrame: false,
     coinRaf: 0,
     diceRaf: 0,
+    online: null,
     viewPaperPlayer: null
   };
 
@@ -325,7 +326,10 @@
     }, ms);
   }
 
-  function playerName(i) { return i === 0 ? 'A' : 'B'; }
+  function playerName(i) {
+    if (S.online) return i === 0 ? S.online.selfId : S.online.otherId;
+    return i === 0 ? 'A' : 'B';
+  }
 
   function initPlayers() {
     S.players = [
@@ -352,8 +356,12 @@
     if (!you || !opp) return;
     dom.hudOppScore.textContent = opp.total;
     dom.hudPlayerScore.textContent = you.total;
-    dom.hudOppName.textContent = S.mode === 'tutorial' ? '教学B' : '练习B';
-    dom.hudPlayerName.textContent = 'A';
+    dom.hudOppName.textContent = S.online ? S.online.otherId : (S.mode === 'tutorial' ? '教学B' : '练习B');
+    dom.hudPlayerName.textContent = S.online ? S.online.selfId : 'A';
+    const oppRole = document.querySelector('.hud-player--opponent .hud-role');
+    const selfRole = document.querySelector('.hud-player--you .hud-role');
+    if (oppRole) oppRole.textContent = S.online ? S.online.otherId : 'B';
+    if (selfRole) selfRole.textContent = S.online ? S.online.selfId : 'A';
     dom.hudRound.textContent = '第 ' + roundNumber() + ' / 11 回合';
     dom.footerTurn.textContent = '第 ' + roundNumber() + ' / 11 回合';
     let phaseText = PHASE_LABEL[S.phase] || '等待开局';
@@ -374,7 +382,7 @@
     const list = isYou ? dom.miniPlayerList : dom.miniOppList;
     const total = isYou ? dom.miniPlayerTotal : dom.miniOppTotal;
     const title = isYou ? dom.miniPlayerTitle : dom.miniOppTitle;
-    title.textContent = isYou ? 'A' : (S.mode === 'tutorial' ? '教学B' : 'B');
+    title.textContent = playerName(i);
     total.textContent = p.total;
     const rows = CATS.map(c => {
       const v = p.card[c.key];
@@ -674,7 +682,7 @@
     dom.paperBody.scrollTop = scrollTop;
 
     dom.paperKicker.textContent = isScoring ? 'CHOOSE A CATEGORY' : 'SCORE SHEET';
-    dom.paperTitle.textContent = playerIndex === 0 ? 'A的计分纸' : (S.mode === 'tutorial' ? '教学B的计分纸' : 'B的计分纸');
+    dom.paperTitle.textContent = playerName(playerIndex) + '的计分纸';
     dom.paperTotal.textContent = p.total;
     const selectedCat = selected && CAT_BY_KEY[selected];
     const previewScore = selectedCat ? E.scoreHand(dice, selected) : 0;
@@ -768,6 +776,11 @@
 
   /* ----------------------------- game lifecycle --------------------------- */
   function startGame(mode) {
+    if (S.online) {
+      if (S.online.poll) clearInterval(S.online.poll);
+      if (S.online.adjustPoll) clearInterval(S.online.adjustPoll);
+      S.online = null;
+    }
     stopTimer();
     clearLater();
     releaseRoom();
@@ -868,6 +881,10 @@
     }
     dom.coinCanvas.classList.remove('is-active');
     dom.game.classList.remove('is-coining');
+    if (S.online) {
+      startOnlineTurn(S.online.state.first || S.online.state.active);
+      return;
+    }
     if (S.mode === 'tutorial') tutorialAiFirst();
     else beginTurn(result === 'A' ? 0 : 1);
   }
@@ -902,6 +919,12 @@
     dom.tableStatus.textContent = '骰子投掷中…';
     const token = S.turnToken;
     const forced = options && options.forcedDice ? options.forcedDice.slice() : null;
+    const onlineActive = !!(S.online && S.active === 0);
+    const onlineSeed = onlineActive ? ((cryptoRandom() * 0xffffffff) >>> 0) : null;
+    if (onlineActive) {
+      S.online.rollingSeed = onlineSeed;
+      publishOnlineState({ phase: 'rolling', active: S.online.selfId, seed: onlineSeed, turnNo: S.turnNo });
+    }
     if (S.dicePoll) { clearInterval(S.dicePoll); S.dicePoll = null; }
 
     const frameWin = dom.diceFrame && dom.diceFrame.contentWindow;
@@ -910,7 +933,7 @@
       S.usingDiceFrame = true;
       dom.game.classList.remove('is-dom-dice');
       dom.tableDice.innerHTML = '';
-      try { frameApi.roll(); } catch (err) { /* fall back below */ }
+      try { frameApi.roll(onlineSeed); } catch (err) { /* fall back below */ }
       let waited = 0;
       S.dicePoll = setInterval(() => {
         if (S.turnToken !== token) { clearInterval(S.dicePoll); S.dicePoll = null; return; }
@@ -1003,6 +1026,15 @@
     }
     dom.tableStatus.textContent = '已投出 · 等待固定';
     updateHUD();
+    if (S.online) {
+      if (S.active === 0) {
+        publishOnlineState({ phase: 'rolled', active: S.online.selfId, seed: S.online.rollingSeed, diceRaw: S.diceRaw, dice: S.dice, turnNo: S.turnNo });
+        later(420, () => { if (S.turnToken === token) openFix(); });
+      } else {
+        dom.tableStatus.textContent = 'B已投出 · 等待B固定';
+      }
+      return;
+    }
     if (S.active === 0) {
       later(420, () => { if (S.turnToken === token) openFix(); });
     } else {
@@ -1117,6 +1149,19 @@
     S.fixed.sort((a, b) => a - b);
     S.phase = 'fixed';
     dom.tableStatus.textContent = '已固定 ' + S.fixed.length + ' 颗骰子';
+    if (S.online) {
+      publishOnlineState({
+        phase: 'fixed',
+        active: S.online.selfId,
+        fixedRaw: S.fixed.map(i => (S.diceMap[i] == null ? i : S.diceMap[i])),
+        fixed: S.fixed.slice(),
+        threeFix: { [S.online.selfId]: !!S.players[0].threeFixUsed, [S.online.otherId]: !!S.players[1].threeFixUsed },
+        diceRaw: S.diceRaw,
+        dice: S.dice,
+        seed: S.online.rollingSeed,
+        turnNo: S.turnNo
+      });
+    }
     if (!S.usingDiceFrame) renderTableDice(S.dice, { fixed: S.fixed });
     showToast('固定了 ' + S.fixed.length + ' 颗骰子', 900);
     updateHUD();
@@ -1161,6 +1206,7 @@
         return;
       }
     }
+    if (S.online) { setupOnlineAdjust(); return; }
     const fixed = S.fixed.slice().sort((a, b) => a - b);
     const fixedValues = fixed.map(i => S.dice[i]);
     const remaining = S.dice.map((_, i) => i).filter(i => !fixed.includes(i));
@@ -1191,16 +1237,66 @@
         S.adjust.aiValues = E.chooseActiveAdjustment(fixedValues, S.adjust.hiddenCount, S.players[1].card, humanValues);
       }
     }
+    openAdjustOverlay();
+  }
+
+  function setupOnlineAdjust() {
+    if (!S.online || S.active !== 0) return;
+    if (S.phase === 'adjust' && S.adjust) return;
+    const fixed = S.fixed.slice().sort((a, b) => a - b);
+    const fixedValues = fixed.map(i => S.dice[i]);
+    const remaining = S.dice.map((_, i) => i).filter(i => !fixed.includes(i));
+    const shuffled = E.shuffleDice(remaining, cryptoRandom);
+    const activeCount = fixed.length === 1 ? 2 : 1;
+    const inactiveCount = fixed.length === 3 ? 1 : 2;
+    const activeVals = shuffled.slice(0, activeCount).map(i => S.dice[i]);
+    const inactiveVals = shuffled.slice(activeCount).map(i => S.dice[i]);
+    const self = S.online.selfId;
+    const other = S.online.otherId;
+    const shares = {};
+    shares[self] = activeVals;
+    shares[other] = inactiveVals;
+    const adjust = {
+      activeId: self,
+      fixedValues,
+      activeCount,
+      inactiveCount,
+      shares
+    };
+    publishOnlineState({ phase: 'adjust', active: self, adjust, turnNo: S.turnNo, seed: S.online.rollingSeed });
+    S.adjust = {
+      fixedValues,
+      fixedCount: fixed.length,
+      activeCount,
+      inactiveCount,
+      humanIsActive: true,
+      humanValues: activeVals.slice(),
+      hiddenCount: inactiveCount,
+      hiddenValues: inactiveVals.slice(),
+      aiCount: inactiveCount,
+      aiValues: null,
+      online: true
+    };
+    S.online.adjustPublished = true;
+    openAdjustOverlay();
+  }
+
+  function openAdjustOverlay() {
+    const humanIsActive = S.adjust.humanIsActive;
+    const humanValues = S.adjust.humanValues;
+    const hiddenCount = S.adjust.hiddenCount;
     S.phase = 'adjust';
     S.turnToken++;
     updateHUD();
     dom.tableStatus.textContent = '暗调阶段 · 双方各调各的骰子';
     dom.diceEyebrow.textContent = 'SECRET ADJUST';
-    dom.diceTitle.textContent = humanIsActive ? '暗调A的骰子' : '暗调 · A分到的骰子';
+    const selfName = playerName(0);
+    const otherName = playerName(1);
+    dom.diceTitle.textContent = humanIsActive ? '暗调' + selfName + '的骰子' : '暗调 · ' + selfName + '分到的骰子';
     dom.diceHint.textContent = humanValues.length
-      ? 'A分到 ' + humanValues.length + ' 颗，可左右调整；B分到 ' + hiddenCount + ' 颗（暗置）。'
-      : 'A分到 0 颗骰子；B将调整 ' + hiddenCount + ' 颗。';
-    dom.diceConfirm.textContent = humanValues.length ? '确定调整' : '等待B';
+      ? selfName + '分到 ' + humanValues.length + ' 颗，可左右调整；' + otherName + '分到 ' + hiddenCount + ' 颗（暗置）。'
+      : selfName + '分到 0 颗骰子；' + otherName + '将调整 ' + hiddenCount + ' 颗。';
+    dom.diceConfirm.textContent = humanValues.length ? '确定调整' : '等待' + otherName;
     dom.diceConfirm.disabled = false;
     dom.diceConfirm.classList.remove('is-hidden');
     dom.diceNote.textContent = '倒计时结束将按当前骰面确定';
@@ -1277,7 +1373,7 @@
       slot.appendChild(owner);
       dom.diceRow.appendChild(slot);
     }
-    dom.diceMeta.innerHTML = `<span>固定 ${a.fixedCount} 颗</span><span>A ${a.humanValues.length} 颗</span><span>B ${a.hiddenCount} 颗</span><span class="meta-chip">暗置中</span>`;
+    dom.diceMeta.innerHTML = `<span>固定 ${a.fixedCount} 颗</span><span>${playerName(0)} ${a.humanValues.length} 颗</span><span>${playerName(1)} ${a.hiddenCount} 颗</span><span class="meta-chip">暗置中</span>`;
   }
 
   function changeAdjustValue(index, delta) {
@@ -1290,14 +1386,15 @@
   }
 
   function submitAdjust(auto) {
+    if (S.online) { submitOnlineAdjust(auto); return; }
     if (S.phase !== 'adjust' || !S.adjust) return;
     const a = S.adjust;
     const token = S.turnToken;
     stopTimer();
     S.phase = 'adjustWait';
     dom.diceConfirm.disabled = true;
-    dom.diceConfirm.textContent = '等待B抉择…';
-    dom.diceHint.textContent = '等待B抉择…';
+    dom.diceConfirm.textContent = '等待' + playerName(1) + '抉择…';
+    dom.diceHint.textContent = '等待' + playerName(1) + '抉择…';
     dom.diceNote.textContent = '双方确认后将揭晓最终骰面';
     const fixedValues = a.fixedValues.slice();
     const humanValues = a.humanValues.slice();
@@ -1340,7 +1437,88 @@
     });
   }
 
+  function onlineAdjustTag(playerId) {
+    return 'timicard_adjust_' + S.roomId + '_' + S.turnNo + '_' + playerId;
+  }
+
+  function submitOnlineAdjust() {
+    if (!S.online || !S.adjust || S.phase !== 'adjust') return;
+    const a = S.adjust;
+    const values = a.humanValues.slice();
+    const tag = onlineAdjustTag(S.online.selfId);
+    stopTimer();
+    S.phase = 'adjustWait';
+    dom.diceConfirm.disabled = true;
+    dom.diceConfirm.textContent = '等待' + S.online.otherId + '抉择…';
+    dom.diceHint.textContent = '等待' + S.online.otherId + '抉择…';
+    dom.diceNote.textContent = '双方确认后将揭晓最终骰面';
+    S.online.myAdjust = values;
+    tdb('update', { tag, value: JSON.stringify({ player: S.online.selfId, values, t: Date.now() }) }).catch(() => {});
+    if (S.active === 0) {
+      const start = Date.now();
+      if (S.online.adjustPoll) clearInterval(S.online.adjustPoll);
+      const poll = async () => {
+        if (!S.online || S.phase !== 'adjustWait') return;
+        if (Date.now() - start > 65000) {
+          clearInterval(S.online.adjustPoll);
+          S.online.adjustPoll = null;
+          finalizeOnlineAdjust(a.hiddenValues.slice());
+          return;
+        }
+        try {
+          const res = await tdb('get', { tag: onlineAdjustTag(S.online.otherId) });
+          const raw = tagValue(res, onlineAdjustTag(S.online.otherId));
+          if (!raw) return;
+          const action = JSON.parse(raw);
+          if (!action || !Array.isArray(action.values)) return;
+          clearInterval(S.online.adjustPoll);
+          S.online.adjustPoll = null;
+          finalizeOnlineAdjust(action.values);
+        } catch (err) { /* keep waiting */ }
+      };
+      poll();
+      S.online.adjustPoll = setInterval(poll, 900);
+    }
+  }
+
+  function finalizeOnlineAdjust(opponentValues) {
+    if (!S.online || !S.adjust) return;
+    const a = S.adjust;
+    const fixed = a.fixedValues.slice();
+    const mine = (a.humanValues || []).slice();
+    const theirs = (opponentValues || []).slice();
+    while (theirs.length < a.hiddenCount) theirs.push(1 + Math.floor(cryptoRandom() * 6));
+    const final = fixed.concat(mine, theirs).sort((x, y) => x - y);
+    S.finalDice = final;
+    S.phase = 'final';
+    if (S.online.adjustPoll) { clearInterval(S.online.adjustPoll); S.online.adjustPoll = null; }
+    publishOnlineState({ phase: 'final', active: S.online.selfId, finalDice: final, turnNo: S.turnNo });
+    showOnlineFinal(final);
+    later(1200, () => {
+      if (!S.online || S.active !== 0) return;
+      publishOnlineState({ phase: 'score', active: S.online.selfId, finalDice: final, turnNo: S.turnNo });
+      beginScorePhase();
+    });
+  }
+
+  function showOnlineFinal(final) {
+    S.finalDice = final.slice();
+    closeOverlay(dom.diceOverlay);
+    S.phase = 'reveal';
+    dom.game.classList.add('is-final-dice');
+    renderTableDice(final);
+    dom.tableStatus.textContent = '最终骰面 · ' + final.join(' · ');
+    updateHUD();
+    updateMiniPapers();
+  }
+
   function beginScorePhase() {
+    if (S.online && S.active !== 0) {
+      S.phase = 'score';
+      S.scoreMode = false;
+      dom.tableStatus.textContent = S.online.otherId + '正在计分…';
+      return;
+    }
     S.phase = 'score';
     S.scoreMode = true;
     S.scorePlayer = S.active;
@@ -1370,7 +1548,7 @@
     } else {
       S.scoreAllowed = null;
       updateHUD();
-      dom.tableStatus.textContent = 'B正在计分…';
+      dom.tableStatus.textContent = playerName(1) + '正在计分…';
       setTutorial(S.mode === 'tutorial' ? S.tutorialText.textContent : '');
       const token = S.turnToken;
       later(950, () => {
@@ -1400,6 +1578,7 @@
     updateMiniPapers();
     showToast(playerName(S.active) + ' 选择【' + CAT_BY_KEY[key].label + '】 +' + score, 1600);
     dom.tableStatus.textContent = playerName(S.active) + ' 填入【' + CAT_BY_KEY[key].label + '】 +' + score;
+    if (S.online) { onlineCommitTurn(); return; }
     if (S.mode === 'tutorial') {
       if (S.tutorialStage === 'p1adjust') {
         S.tutorialStage = 'jump';
@@ -1485,14 +1664,13 @@
   function renderResultCards() {
     return S.players.map((p, i) => {
       const rows = CATS.map(c => `<span>${c.label} <b>${p.card[c.key] == null ? '—' : p.card[c.key]}</b></span>`).join('');
-      return `<div class="result-sheet"><h4>${i === 0 ? 'A' : 'B'}<span class="result-total">${p.total}</span></h4><div class="result-sheet-grid">${rows}</div></div>`;
+      return `<div class="result-sheet"><h4>${playerName(i)}<span class="result-total">${p.total}</span></h4><div class="result-sheet-grid">${rows}</div></div>`;
     }).join('');
   }
 
   function endGame(tutorialWin) {
     if (S.phase === 'over') return;
     S.phase = 'over';
-    releaseRoom();
     S.scoreMode = false;
     stopTimer();
     closeOverlay(dom.paperOverlay);
@@ -1506,13 +1684,14 @@
     dom.resultKicker.textContent = S.mode === 'tutorial' ? 'TUTORIAL CLEAR' : 'GAME OVER';
     dom.resultTitle.textContent = S.mode === 'tutorial'
       ? (win ? '教学完成 · A赢了' : '教学完成')
-      : (tie ? '平局' : win ? 'A赢了' : 'B获胜');
-    dom.resultScore.textContent = 'A ' + you + ' : ' + opp + ' B';
+      : (tie ? '平局' : win ? playerName(0) + '赢了' : playerName(1) + '获胜');
+    dom.resultScore.textContent = playerName(0) + ' ' + you + ' : ' + opp + ' ' + playerName(1);
     dom.resultCards.innerHTML = renderResultCards();
     dom.btnAgain.textContent = S.mode === 'tutorial' ? '完成教学' : '再来一局';
     openOverlay(dom.resultOverlay);
     S.tutorialStage = 'done';
     setTutorial('');
+    releaseRoom();
   }
 
   /* ------------------------------ match flow ------------------------------ */
@@ -1526,6 +1705,11 @@
   }
 
   async function releaseRoom() {
+    if (S.online) {
+      if (S.online.poll) clearInterval(S.online.poll);
+      if (S.online.adjustPoll) clearInterval(S.online.adjustPoll);
+      S.online = null;
+    }
     clearRoomPoll();
     const id = S.roomId;
     const joinTag = S.roomJoinTag;
@@ -1614,22 +1798,47 @@
     const token = ++S.matchToken;
     S.matchBusy = true;
     dom.matchTitle.textContent = '匹配中';
-    dom.matchSub.textContent = '正在搜索真人牌桌…';
+    dom.matchSub.textContent = '正在进入匹配大厅…';
     dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i === 0));
     openOverlay(dom.matchOverlay);
     cleanupStaleRooms();
 
-    let rooms = [];
-    try { rooms = await listOpenRooms(false); } catch (err) { rooms = []; }
+    const id = 'LOBBY';
+    const tag = 'timicard_room_' + id;
+    let room = null;
+    try { room = await getRoom(tag); } catch (err) { }
     if (token !== S.matchToken) return;
+    const fresh = room && Date.now() - Number(room.updatedAt || 0) < 25000;
 
-    if (rooms.length) {
-      await joinRoom(rooms[0], token);
+    if (fresh && room.status === 'playing' && room.state) {
+      if (room.hostId === CLIENT_ID || room.guestId === CLIENT_ID) {
+        S.roomId = id;
+        S.roomHost = room.hostId === CLIENT_ID;
+        S.roomJoinTag = null;
+        startOnlineGame(room, S.roomHost ? 'host' : 'guest');
+      } else {
+        dom.matchTitle.textContent = '大厅正在对局';
+        dom.matchSub.textContent = '请稍后再试';
+      }
       return;
     }
 
-    const id = 'R' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-    const room = {
+    if (fresh && room.status === 'open' && room.hostId !== CLIENT_ID) {
+      await joinRoom({ tag, room }, token);
+      return;
+    }
+
+    if (fresh && room.status === 'open' && room.hostId === CLIENT_ID) {
+      S.roomId = id;
+      S.roomHost = true;
+      dom.matchTitle.textContent = '等待真人加入';
+      dom.matchSub.textContent = '匹配大厅 · 等待另一位玩家';
+      dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i <= 1));
+      pollHost(token);
+      return;
+    }
+
+    const lobby = {
       status: 'open',
       hostId: CLIENT_ID,
       createdAt: Date.now(),
@@ -1637,18 +1846,29 @@
       game: 'xianhou'
     };
     try {
-      await tdb('update', { tag: 'timicard_room_' + id, value: JSON.stringify(room) });
-      if (token !== S.matchToken) return;
-      S.roomId = id;
-      S.roomHost = true;
-      dom.matchTitle.textContent = '等待真人加入';
-      dom.matchSub.textContent = '房间 ' + id + ' · 等待另一位玩家';
-      dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i <= 1));
-      pollHost(token);
-      S.roomRaceTimer = setTimeout(() => resolveRoomRace(token), 1800);
+      await tdb('update', { tag, value: JSON.stringify(lobby) });
     } catch (err) {
       dom.matchTitle.textContent = '暂时无法联网';
       dom.matchSub.textContent = '可以直接进入人机练习';
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 700));
+    if (token !== S.matchToken) return;
+    const check = await getRoom(tag);
+    if (!check || check.status !== 'open') {
+      dom.matchTitle.textContent = '大厅状态变化';
+      dom.matchSub.textContent = '请取消后重试';
+      return;
+    }
+    if (check.hostId === CLIENT_ID) {
+      S.roomId = id;
+      S.roomHost = true;
+      dom.matchTitle.textContent = '等待真人加入';
+      dom.matchSub.textContent = '匹配大厅 · 等待另一位玩家';
+      dom.matchSteps.forEach((s, i) => s.classList.toggle('is-on', i <= 1));
+      pollHost(token);
+    } else {
+      await joinRoom({ tag, room: check }, token);
     }
   }
 
@@ -1702,8 +1922,8 @@
         dom.matchSub.textContent = '请取消后重新匹配';
         return;
       }
-      if (room.guestId && room.status === 'matched') {
-        showMatched();
+      if (room.guestId && room.state) {
+        startOnlineGame(room, 'host');
         return;
       }
       room.updatedAt = Date.now();
@@ -1716,14 +1936,15 @@
       joins.sort((a, b) => Number(a.value.t || 0) - Number(b.value.t || 0));
       const chosen = joins[0];
       room.guestId = chosen.value.guest;
-      room.status = 'matched';
+      room.status = 'playing';
+      room.state = createOnlineState();
       room.updatedAt = Date.now();
       try {
         await tdb('update', { tag, value: JSON.stringify(room) });
         for (const j of joins) {
           try { await tdb('delete', { tag: j.tag }); } catch (err) { }
         }
-        showMatched();
+        startOnlineGame(room, 'host');
       } catch (err) { }
     };
     poll();
@@ -1738,6 +1959,14 @@
       if (!room) {
         dom.matchTitle.textContent = '房间已关闭';
         dom.matchSub.textContent = '请取消后重新匹配';
+        return;
+      }
+      if (room.status === 'playing' && room.guestId === CLIENT_ID && room.state) {
+        if (S.roomJoinTag) {
+          try { await tdb('delete', { tag: S.roomJoinTag }); } catch (err) { }
+          S.roomJoinTag = null;
+        }
+        startOnlineGame(room, 'guest');
         return;
       }
       if (room.status === 'matched' && room.guestId === CLIENT_ID) {
@@ -1769,6 +1998,319 @@
     S.roomPoll = null;
     releaseRoom();
     closeOverlay(dom.matchOverlay);
+  }
+
+  /* ------------------------------- online play ----------------------------- */
+  function createOnlineState() {
+    const first = cryptoRandom() < 0.5 ? 'A' : 'B';
+    return {
+      revision: 1,
+      phase: 'coin',
+      first,
+      active: first,
+      turnNo: 0,
+      cards: { A: E.emptyCard(), B: E.emptyCard() },
+      threeFix: { A: false, B: false },
+      diceRaw: [],
+      dice: [],
+      fixedRaw: [],
+      fixed: [],
+      finalDice: []
+    };
+  }
+
+  function publishOnlineState(patch) {
+    if (!S.online) return;
+    const base = S.online.state || {};
+    const next = { ...base, ...patch, revision: (base.revision || 0) + 1 };
+    S.online.state = next;
+    S.online.revision = next.revision;
+    const tag = 'timicard_room_' + S.roomId;
+    S.online.publishChain = (S.online.publishChain || Promise.resolve()).then(async () => {
+      try {
+        const room = await getRoom(tag);
+        if (!room) return;
+        room.status = 'playing';
+        room.state = next;
+        room.updatedAt = Date.now();
+        await tdb('update', { tag, value: JSON.stringify(room) });
+      } catch (err) { }
+    });
+  }
+
+  function startOnlineGame(room, role) {
+    const st = room && room.state;
+    if (!st) return;
+    if (S.roomPoll) { clearInterval(S.roomPoll); S.roomPoll = null; }
+    const selfId = role === 'host' ? 'A' : 'B';
+    const otherId = role === 'host' ? 'B' : 'A';
+    S.matchToken++;
+    S.matchBusy = false;
+    S.gameToken++;
+    stopTimer();
+    clearLater();
+    if (S.coinHandler) { window.removeEventListener('message', S.coinHandler); S.coinHandler = null; }
+    if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
+    if (S.dicePoll) { clearInterval(S.dicePoll); S.dicePoll = null; }
+    S.mode = 'online';
+    S.phase = 'idle';
+    S.turnNo = st.turnNo || 0;
+    S.dice = [];
+    S.diceRaw = [];
+    S.diceMap = [];
+    S.fixed = [];
+    S.fixedRaw = [];
+    S.adjust = null;
+    S.finalDice = [];
+    S.scoreMode = false;
+    S.scoreKey = null;
+    S.scoreAllowed = null;
+    S.tutorialStage = 'off';
+    S.online = {
+      role,
+      selfId,
+      otherId,
+      state: st,
+      revision: st.revision || 1,
+      poll: null,
+      publishChain: Promise.resolve(),
+      adjustPoll: null,
+      remoteSeed: null,
+      remoteRolling: false,
+      adjustmentOpenedTurn: null,
+      finalShownTurn: null
+    };
+    S.players = [
+      { id: selfId, name: selfId, isHuman: true, card: { ...(st.cards[selfId] || E.emptyCard()) }, total: 0, threeFixUsed: !!(st.threeFix && st.threeFix[selfId]) },
+      { id: otherId, name: otherId, isHuman: false, card: { ...(st.cards[otherId] || E.emptyCard()) }, total: 0, threeFixUsed: !!(st.threeFix && st.threeFix[otherId]) }
+    ];
+    refreshPlayerTotal(0);
+    refreshPlayerTotal(1);
+    S.active = st.active === selfId ? 0 : 1;
+    dom.game.classList.remove('is-dom-dice', 'is-final-dice');
+    closeAllOverlays();
+    showScreen('game');
+    renderTableDice([]);
+    updateHUD();
+    updateMiniPapers();
+    dom.tableStatus.textContent = '联机对局 · ' + selfId + ' vs ' + otherId;
+    if (st.phase === 'coin' || st.turnNo === 0) {
+      startCoin(st.first || st.active);
+    } else {
+      startOnlineTurn(st.active);
+      applyOnlineState(st);
+    }
+    startOnlinePoll();
+  }
+
+  function startOnlinePoll() {
+    if (!S.online) return;
+    if (S.online.poll) clearInterval(S.online.poll);
+    const poll = async () => {
+      if (!S.online) return;
+      const room = await getRoom('timicard_room_' + S.roomId);
+      if (!room || !room.state) return;
+      if ((room.state.revision || 0) > (S.online.revision || 0)) {
+        applyOnlineState(room.state);
+      }
+    };
+    poll();
+    S.online.poll = setInterval(poll, 1000);
+  }
+
+  function startOnlineTurn(activeId) {
+    if (!S.online) return;
+    S.active = activeId === S.online.selfId ? 0 : 1;
+    S.phase = 'intro';
+    S.turnToken++;
+    S.dice = [];
+    S.diceRaw = [];
+    S.diceMap = [];
+    S.fixed = [];
+    S.fixedRaw = [];
+    S.adjust = null;
+    S.finalDice = [];
+    S.scoreMode = false;
+    S.scoreKey = null;
+    S.scoreAllowed = null;
+    dom.game.classList.remove('is-final-dice');
+    renderTableDice([]);
+    updateHUD();
+    updateMiniPapers();
+    const activeName = activeId;
+    if (S.active === 0) {
+      dom.tableStatus.textContent = playerName(0) + '的回合 · 准备投骰';
+      showBanner('轮到' + activeName + '了');
+      const token = S.turnToken;
+      later(1150, () => {
+        if (!S.online || S.turnToken !== token || S.active !== 0 || S.phase !== 'intro') return;
+        S.phase = 'rolling';
+        startRoll();
+      });
+    } else {
+      dom.tableStatus.textContent = activeName + '的回合 · 等待投骰';
+      showBanner('轮到' + activeName + '了');
+    }
+  }
+
+  function startRemoteOnlineRoll(seed) {
+    if (!S.online || S.active === 0) return;
+    if (S.online.remoteSeed === seed && S.online.remoteRolling) return;
+    const frameWin = dom.diceFrame && dom.diceFrame.contentWindow;
+    const api = frameWin && frameWin.__diceGame;
+    if (!api) return;
+    S.online.remoteSeed = seed;
+    S.online.remoteRolling = true;
+    S.usingDiceFrame = true;
+    dom.game.classList.remove('is-dom-dice');
+    try { api.roll(seed); } catch (err) { return; }
+    const token = S.turnToken;
+    let waited = 0;
+    if (S.dicePoll) clearInterval(S.dicePoll);
+    S.dicePoll = setInterval(() => {
+      if (!S.online || S.turnToken !== token) { clearInterval(S.dicePoll); S.dicePoll = null; return; }
+      waited += 120;
+      let snap = null;
+      try { snap = api.snapshot(); } catch (err) { }
+      if (snap && snap.phase === 'settled' && snap.values && snap.values.length === 5) {
+        clearInterval(S.dicePoll); S.dicePoll = null;
+        S.online.remoteRolling = false;
+        const raw = snap.values.slice();
+        const order = raw.map((v, i) => i).sort((a, b) => raw[a] - raw[b] || a - b);
+        S.diceRaw = raw;
+        S.diceMap = order;
+        S.dice = order.map(i => raw[i]);
+        S.phase = 'rolled';
+        dom.tableStatus.textContent = '已投出 · 等待' + S.online.otherId + '固定';
+        updateHUD();
+      } else if (waited > 16000) {
+        clearInterval(S.dicePoll); S.dicePoll = null;
+        S.online.remoteRolling = false;
+      }
+    }, 120);
+  }
+
+  function applyOnlineState(st) {
+    if (!S.online) return;
+    S.online.state = st;
+    S.online.revision = st.revision || S.online.revision;
+    S.turnNo = st.turnNo || 0;
+    const self = S.online.selfId;
+    const other = S.online.otherId;
+    S.players[0].card = { ...(st.cards[self] || E.emptyCard()) };
+    S.players[1].card = { ...(st.cards[other] || E.emptyCard()) };
+    if (st.threeFix) {
+      S.players[0].threeFixUsed = !!st.threeFix[self];
+      S.players[1].threeFixUsed = !!st.threeFix[other];
+    }
+    refreshPlayerTotal(0);
+    refreshPlayerTotal(1);
+    const activeLocal = st.active === self ? 0 : 1;
+    S.active = activeLocal;
+    updateHUD();
+    updateMiniPapers();
+    if (st.phase === 'coin') {
+      if (!S.coinHandler && S.phase !== 'coin') startCoin(st.first || st.active);
+      return;
+    }
+    if (st.phase === 'over') {
+      if (S.phase !== 'over') endGame(false);
+      return;
+    }
+    if (st.phase === 'intro' || st.phase === 'rolling') {
+      if (activeLocal === 1) {
+        if (st.phase === 'rolling' && Number.isInteger(st.seed)) startRemoteOnlineRoll(st.seed);
+        else if (S.phase !== 'intro' && S.phase !== 'rolling' && S.phase !== 'rolled') startOnlineTurn(st.active);
+      } else if (activeLocal === 0 && ['score', 'scoreDone', 'final', 'reveal', 'idle', 'over'].includes(S.phase)) {
+        startOnlineTurn(st.active);
+      }
+      return;
+    }
+    if (st.phase === 'rolled' || st.phase === 'fixed') {
+      if (activeLocal === 1) {
+        if (st.diceRaw && st.diceRaw.length === 5) {
+          const raw = st.diceRaw.slice();
+          const order = raw.map((v, i) => i).sort((a, b) => raw[a] - raw[b] || a - b);
+          S.diceRaw = raw; S.diceMap = order; S.dice = order.map(i => raw[i]);
+        }
+        if (st.phase === 'fixed') {
+          S.phase = 'fixed';
+          S.fixedRaw = (st.fixedRaw || []).slice();
+          S.fixed = (st.fixed || []).slice();
+          const api = dom.diceFrame && dom.diceFrame.contentWindow && dom.diceFrame.contentWindow.__diceGame;
+          if (api && S.online.remoteSeed !== null) { try { api.dissolve(S.fixedRaw); } catch (err) { } }
+          dom.tableStatus.textContent = S.online.otherId + '已固定 ' + S.fixedRaw.length + ' 颗骰子';
+        } else {
+          S.phase = 'rolled';
+          dom.tableStatus.textContent = '已投出 · 等待' + S.online.otherId + '固定';
+        }
+        updateHUD();
+      }
+      return;
+    }
+    if (st.phase === 'adjust') {
+      if (activeLocal === 1 && st.adjust) openOnlineAdjustFromState(st.adjust);
+      return;
+    }
+    if (st.phase === 'final') {
+      if (activeLocal === 1 && Array.isArray(st.finalDice) && st.finalDice.length === 5) {
+        if (S.online.finalShownTurn !== st.turnNo) {
+          S.online.finalShownTurn = st.turnNo;
+          showOnlineFinal(st.finalDice);
+        }
+      }
+      return;
+    }
+    if (st.phase === 'score') {
+      if (activeLocal === 1) {
+        dom.tableStatus.textContent = S.online.otherId + '正在计分…';
+      }
+      return;
+    }
+  }
+
+  function openOnlineAdjustFromState(adj) {
+    if (!S.online || !adj) return;
+    if (S.phase === 'adjust' && S.adjust) return;
+    const self = S.online.selfId;
+    const other = S.online.otherId;
+    const shares = adj.shares || {};
+    const mine = (shares[self] || []).slice();
+    const theirs = (shares[other] || []).slice();
+    S.adjust = {
+      fixedValues: (adj.fixedValues || []).slice(),
+      fixedCount: (adj.fixedValues || []).length,
+      activeCount: adj.activeCount || 0,
+      inactiveCount: adj.inactiveCount || 0,
+      humanIsActive: false,
+      humanValues: mine,
+      hiddenCount: theirs.length,
+      hiddenValues: theirs,
+      aiCount: theirs.length,
+      aiValues: null,
+      online: true
+    };
+    openAdjustOverlay();
+  }
+
+  function onlineCommitTurn() {
+    if (!S.online) return;
+    const other = S.online.otherId;
+    const cards = {};
+    cards[S.online.selfId] = S.players[0].card;
+    cards[other] = S.players[1].card;
+    const threeFix = { [S.online.selfId]: !!S.players[0].threeFixUsed, [other]: !!S.players[1].threeFixUsed };
+    if (E.isCardFull(S.players[0].card) && E.isCardFull(S.players[1].card)) {
+      publishOnlineState({ phase: 'over', active: other, turnNo: S.turnNo, cards, threeFix });
+      later(1300, () => endGame(false));
+      return;
+    }
+    publishOnlineState({ phase: 'intro', active: other, turnNo: S.turnNo, cards, threeFix });
+    S.active = 1;
+    S.phase = 'intro';
+    updateHUD();
+    updateMiniPapers();
+    dom.tableStatus.textContent = '等待' + other + '投骰…';
   }
 
   /* ------------------------------- bind UI -------------------------------- */
@@ -1850,6 +2392,7 @@
   dom.btnAgain.addEventListener('click', () => {
     closeOverlay(dom.resultOverlay);
     if (S.mode === 'tutorial') { goRules(); return; }
+    if (S.mode === 'online') { startMatch(); return; }
     startGame('ai');
   });
   dom.btnResultMenu.addEventListener('click', () => {
