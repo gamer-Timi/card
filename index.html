@@ -686,7 +686,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .table-clock {
   position: absolute;
   z-index: 5;
-  left: 67%;
+  left: 71%;
   top: 50%;
   width: 112px;
   height: 124px;
@@ -2057,6 +2057,57 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 
+/* ===== dice.html / coin.html embedded scene ===== */
+.dice-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.table-outer { display: none !important; }
+
+.screen--game .table-stage {
+  background:
+    radial-gradient(88% 70% at 50% 46%, rgba(30, 55, 45, 0.5) 0%, rgba(7, 14, 12, 0.2) 52%, rgba(2, 6, 5, 0.72) 100%),
+    #040907;
+}
+
+.table-dice { display: none; }
+.screen--game.is-dom-dice .table-dice { display: flex; }
+
+.center-zone {
+  top: auto !important;
+  bottom: 7.5%;
+}
+.screen--game.is-dom-dice .center-zone {
+  top: 54% !important;
+  bottom: auto;
+}
+
+.coin-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #05080c;
+  display: none;
+}
+.coin-frame.is-active { display: block; }
+
+.screen--game.is-coining .game-hud,
+.screen--game.is-coining .game-footer,
+.screen--game.is-coining .table-clock,
+.screen--game.is-coining .mini-paper { visibility: hidden; }
+
+.screen--game.is-dom-dice .dice-frame { display: none; }
+
 
 
 </style>
@@ -2072,12 +2123,12 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       <span class="ambient-ring ambient-ring--3"></span>
       <span class="ambient-die ambient-die--1"></span>
       <span class="ambient-die ambient-die--2"></span>
-      <span class="ambient-coin">先</span>
+      <span class="ambient-coin">A</span>
     </div>
     <div class="menu-frame">
       <p class="eyebrow">FIVE DICE · SCORE SHEET</p>
-      <h1 class="game-title"><span>先</span><i></i><span>后</span></h1>
-      <p class="game-sub">五骰 · 计分纸 · 一局定先后</p>
+      <h1 class="game-title"><span>A</span><i></i><span>B</span></h1>
+      <p class="game-sub">五骰 · 计分纸 · A / B 对局</p>
       <div class="menu-actions">
         <button class="menu-btn" id="btnRules" type="button">
           <span class="menu-btn-index">01</span>
@@ -2090,7 +2141,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
           <span class="menu-btn-en">MATCH</span>
         </button>
       </div>
-      <button class="practice-link" id="btnPractice" type="button">没有对手？先进入人机练习 <span>→</span></button>
+      <button class="practice-link" id="btnPractice" type="button">没有 B？进入人机练习 <span>→</span></button>
       <p class="menu-foot">掷骰 · 固定 · 暗调 · 纸上定胜负</p>
     </div>
     <div class="menu-corner menu-corner--tl"></div>
@@ -2121,11 +2172,11 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
               <li><b>投骰：</b>当前行动方投出五颗骰子。</li>
               <li><b>固定：</b>行动方从五颗骰子中固定 <b>1–3 颗</b>。每方各有一次「固定三颗」的机会，用掉后最多只能固定两颗。</li>
               <li><b>分配：</b>未固定的骰子按以下方式分给双方：
-                <span class="rule-chip">固定 1 颗 → 我 2 / 对方 2</span>
-                <span class="rule-chip">固定 2 颗 → 我 1 / 对方 2</span>
-                <span class="rule-chip">固定 3 颗 → 我 1 / 对方 1</span>
+                <span class="rule-chip">固定 1 颗 → 我 2 / B 2</span>
+                <span class="rule-chip">固定 2 颗 → 我 1 / B 2</span>
+                <span class="rule-chip">固定 3 颗 → 我 1 / B 1</span>
               </li>
-              <li><b>暗调：</b>双方在 60 秒内各自调整自己分到的骰子。每颗骰子可用左右箭头 ±1，1 与 6 循环。对方调整的骰面在揭晓前不可见。</li>
+              <li><b>暗调：</b>A、B 在 60 秒内各自调整自己分到的骰子。每颗骰子可用左右箭头 ±1，1 与 6 循环。B调整的骰面在揭晓前不可见。</li>
               <li><b>揭晓：</b>五颗骰子合并，从小到大排成一行。</li>
               <li><b>计分：</b>行动方在 30 秒内从自己的计分纸中选一栏填入本回合得分；已填过的栏不能再次选择。超时自动选择最靠上的未填栏。</li>
             </ol>
@@ -2146,7 +2197,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
           <section class="rules-block">
             <h3>四、先后与回合</h3>
-            <p>开局投币决定先后。硬币正面为「先」，反面为「后」。每方每回合行动一次，双方各填满十一栏后结算。桌上计时器只有一个指针，一圈代表 60 秒；固定阶段 30 秒，暗调阶段 60 秒，计分阶段 30 秒。</p>
+            <p>开局投币决定先后。硬币 A 面为 A 先手，B 面为 B 先手。每方每回合行动一次，双方各填满十一栏后结算。桌上计时器只有一个指针，一圈代表 60 秒；固定阶段 30 秒，暗调阶段 60 秒，计分阶段 30 秒。</p>
           </section>
 
           <section class="rules-block rules-block--note">
@@ -2156,7 +2207,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
         </div>
 
         <footer class="rules-foot">
-          <span class="rules-foot-note">每次开局，骰面与对手选择都会变化。</span>
+          <span class="rules-foot-note">每次开局，骰面与B选择都会变化。</span>
           <button class="primary-btn" id="btnTutorial" type="button">进入教学</button>
         </footer>
       </article>
@@ -2168,7 +2219,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     <header class="game-hud">
       <div class="hud-player hud-player--opponent">
         <span class="hud-dot"></span>
-        <div class="hud-name-wrap"><span class="hud-role">对手</span><strong id="hudOppName">练习对手</strong></div>
+        <div class="hud-name-wrap"><span class="hud-role">B</span><strong id="hudOppName">练习B</strong></div>
         <span class="hud-score" id="hudOppScore">0</span>
       </div>
       <div class="hud-center">
@@ -2177,12 +2228,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       </div>
       <div class="hud-player hud-player--you">
         <span class="hud-score" id="hudPlayerScore">0</span>
-        <div class="hud-name-wrap hud-name-wrap--right"><span class="hud-role">你</span><strong id="hudPlayerName">玩家</strong></div>
+        <div class="hud-name-wrap hud-name-wrap--right"><span class="hud-role">A</span><strong id="hudPlayerName">玩家</strong></div>
         <span class="hud-dot hud-dot--you"></span>
       </div>
     </header>
 
     <main class="table-stage" id="tableStage">
+      <iframe class="dice-frame" id="diceFrame" src="dice-game.html?embed=1&amp;game=1" title="3D 骰桌" tabindex="-1" aria-hidden="true"></iframe>
       <div class="table-outer" id="tableOuter">
         <div class="table-felt">
           <div class="felt-grain"></div>
@@ -2228,9 +2280,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
         <span class="clock-caption">TURN CLOCK</span>
       </div>
 
-      <button class="mini-paper mini-paper--opponent" id="miniPaper1" type="button" aria-label="查看对手计分表">
+      <button class="mini-paper mini-paper--opponent" id="miniPaper1" type="button" aria-label="查看B计分表">
         <span class="mini-paper-pin"></span>
-        <span class="mini-paper-title" id="miniOppTitle">对手</span>
+        <span class="mini-paper-title" id="miniOppTitle">B</span>
         <span class="mini-paper-list" id="miniOppList"></span>
         <span class="mini-paper-total"><em>总和</em><b id="miniOppTotal">0</b></span>
         <span class="mini-paper-badge">表</span>
@@ -2238,14 +2290,14 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
       <button class="mini-paper mini-paper--player" id="miniPaper0" type="button" aria-label="查看我的计分表">
         <span class="mini-paper-pin"></span>
-        <span class="mini-paper-title" id="miniPlayerTitle">你</span>
+        <span class="mini-paper-title" id="miniPlayerTitle">A</span>
         <span class="mini-paper-list" id="miniPlayerList"></span>
         <span class="mini-paper-total"><em>总和</em><b id="miniPlayerTotal">0</b></span>
         <span class="mini-paper-badge">表</span>
       </button>
 
-      <div class="player-tag player-tag--opponent"><span class="player-tag-dot"></span>对方区域</div>
-      <div class="player-tag player-tag--you">你的区域<span class="player-tag-dot"></span></div>
+      <div class="player-tag player-tag--opponent"><span class="player-tag-dot"></span>B区域</div>
+      <div class="player-tag player-tag--you">A 的区域<span class="player-tag-dot"></span></div>
 
       <div class="center-zone">
         <div class="dice-row table-dice" id="tableDice" aria-live="polite"></div>
@@ -2264,6 +2316,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       <div class="footer-turn" id="footerTurn">第 1 / 11 回合</div>
       <div class="footer-hint" id="footerHint">点击纸张查看计分表</div>
     </footer>
+
+    <iframe class="coin-frame" id="coinFrame" src="about:blank" title="投币" tabindex="-1" aria-hidden="true"></iframe>
   </section>
 
   <div class="turn-banner" id="turnBanner" aria-live="polite"></div>
@@ -3354,7 +3408,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     fix: '固定骰子',
     fixed: '已固定',
     adjust: '暗调中',
-    adjustWait: '等待对方',
+    adjustWait: '等待B',
     reveal: '揭晓',
     score: '计分中',
     scoreDone: '等待下一回合',
@@ -3403,7 +3457,13 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     coinToken: 0,
     coinTimer: null,
     coinAnim: null,
+    coinHandler: null,
+    coinTimeout: null,
     diceAnim: null,
+    dicePoll: null,
+    diceRaw: [],
+    diceMap: [],
+    usingDiceFrame: false,
     coinRaf: 0,
     diceRaf: 0,
     viewPaperPlayer: null
@@ -3447,6 +3507,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     diceCanvas: $('diceCanvas'),
     tableStage: $('tableStage'),
     tableOuter: $('tableOuter'),
+    diceFrame: $('diceFrame'),
+    coinFrame: $('coinFrame'),
     diceOverlay: $('diceOverlay'),
     diceEyebrow: $('diceEyebrow'),
     diceTitle: $('diceTitle'),
@@ -3632,12 +3694,12 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     }, ms);
   }
 
-  function playerName(i) { return i === 0 ? '你' : '对手'; }
+  function playerName(i) { return i === 0 ? 'A' : 'B'; }
 
   function initPlayers() {
     S.players = [
-      { id: 'you', name: '你', isHuman: true, card: E.emptyCard(), total: 0, threeFixUsed: false },
-      { id: 'ai', name: '练习对手', isHuman: false, card: E.emptyCard(), total: 0, threeFixUsed: false }
+      { id: 'you', name: 'A', isHuman: true, card: E.emptyCard(), total: 0, threeFixUsed: false },
+      { id: 'ai', name: '练习B', isHuman: false, card: E.emptyCard(), total: 0, threeFixUsed: false }
     ];
   }
 
@@ -3659,16 +3721,16 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     if (!you || !opp) return;
     dom.hudOppScore.textContent = opp.total;
     dom.hudPlayerScore.textContent = you.total;
-    dom.hudOppName.textContent = S.mode === 'tutorial' ? '教学对手' : '练习对手';
-    dom.hudPlayerName.textContent = '你';
+    dom.hudOppName.textContent = S.mode === 'tutorial' ? '教学B' : '练习B';
+    dom.hudPlayerName.textContent = 'A';
     dom.hudRound.textContent = '第 ' + roundNumber() + ' / 11 回合';
     dom.footerTurn.textContent = '第 ' + roundNumber() + ' / 11 回合';
     let phaseText = PHASE_LABEL[S.phase] || '等待开局';
-    if (S.phase === 'intro') phaseText = S.active === 0 ? '你的回合' : '对方回合';
+    if (S.phase === 'intro') phaseText = S.active === 0 ? 'A的回合' : 'B回合';
     if (S.phase === 'coin') phaseText = '投币中';
-    if (S.phase === 'fix') phaseText = S.active === 0 ? '你正在固定骰子' : '对方正在固定骰子';
+    if (S.phase === 'fix') phaseText = S.active === 0 ? 'A正在固定骰子' : 'B正在固定骰子';
     if (S.phase === 'adjust') phaseText = '双方暗调中';
-    if (S.phase === 'score') phaseText = S.scorePlayer === 0 ? '你正在计分' : '对方正在计分';
+    if (S.phase === 'score') phaseText = S.scorePlayer === 0 ? 'A正在计分' : 'B正在计分';
     dom.hudPhase.textContent = phaseText;
     dom.footerHint.textContent = '点击桌上的纸张可查看完整计分表';
     updateMiniPapers();
@@ -3681,7 +3743,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     const list = isYou ? dom.miniPlayerList : dom.miniOppList;
     const total = isYou ? dom.miniPlayerTotal : dom.miniOppTotal;
     const title = isYou ? dom.miniPlayerTitle : dom.miniOppTitle;
-    title.textContent = isYou ? '你' : (S.mode === 'tutorial' ? '教学对手' : '对手');
+    title.textContent = isYou ? 'A' : (S.mode === 'tutorial' ? '教学B' : 'B');
     total.textContent = p.total;
     const rows = CATS.map(c => {
       const v = p.card[c.key];
@@ -3927,8 +3989,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     setTimeout(() => { dom.particles.innerHTML = ''; }, 1500);
   }
 
-  function dissolveTableDice() {
-    const dice = Array.from(dom.tableDice.querySelectorAll('.die'));
+  function dissolveTableDice(indices) {
+    const all = Array.from(dom.tableDice.querySelectorAll('.die'));
+    const dice = indices ? all.filter((el, i) => indices.includes(i)) : all;
     if (!dice.length) return;
     const gameRect = dom.game.getBoundingClientRect();
     dom.particles.innerHTML = '';
@@ -3944,7 +4007,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       });
       wave++;
     }, 110);
-    setTimeout(() => { dom.tableDice.innerHTML = ''; }, 900);
+    setTimeout(() => { dice.forEach(el => el.remove()); }, 900);
     setTimeout(() => { dom.particles.innerHTML = ''; }, 1800);
   }
 
@@ -3980,7 +4043,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     dom.paperBody.scrollTop = scrollTop;
 
     dom.paperKicker.textContent = isScoring ? 'CHOOSE A CATEGORY' : 'SCORE SHEET';
-    dom.paperTitle.textContent = playerIndex === 0 ? '你的计分纸' : (S.mode === 'tutorial' ? '教学对手的计分纸' : '对手的计分纸');
+    dom.paperTitle.textContent = playerIndex === 0 ? 'A的计分纸' : (S.mode === 'tutorial' ? '教学B的计分纸' : 'B的计分纸');
     dom.paperTotal.textContent = p.total;
     const selectedCat = selected && CAT_BY_KEY[selected];
     const previewScore = selectedCat ? E.scoreHand(dice, selected) : 0;
@@ -3991,7 +4054,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     dom.paperConfirm.disabled = !interactive || !selected;
     dom.paperHint.textContent = interactive
       ? (allowed ? '教学：只能选择【' + CAT_BY_KEY[allowed].label + '】' : (selectedCat ? '已选中，可确认计分' : '点击一个未使用的栏目'))
-      : (S.scoreMode ? '等待对方选择栏目…' : '点击问号查看栏目规则');
+      : (S.scoreMode ? '等待B选择栏目…' : '点击问号查看栏目规则');
     dom.paperKicker.textContent = interactive ? 'CHOOSE A CATEGORY' : 'SCORE SHEET';
   }
 
@@ -4102,6 +4165,17 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.diceRaf = 0;
     S.coinAnim = null;
     S.diceAnim = null;
+    if (S.coinHandler) { window.removeEventListener('message', S.coinHandler); S.coinHandler = null; }
+    if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
+    if (S.dicePoll) { clearInterval(S.dicePoll); S.dicePoll = null; }
+    S.usingDiceFrame = false;
+    S.diceRaw = [];
+    S.diceMap = [];
+    dom.game.classList.remove('is-coining', 'is-dom-dice');
+    if (dom.coinFrame) {
+      dom.coinFrame.classList.remove('is-active');
+      dom.coinFrame.src = 'about:blank';
+    }
     if (dom.coinCanvas) dom.coinCanvas.classList.remove('is-active');
     dom.game.classList.remove('is-coining');
     initPlayers();
@@ -4112,8 +4186,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     renderTableDice([]);
     dom.tableStatus.textContent = '投币决定先后';
     updateHUD();
-    setTutorial(mode === 'tutorial' ? '教学关卡：硬币固定为「后」，对方先手。' : '');
-    startCoin(mode === 'tutorial' ? '后' : (cryptoRandom() < 0.5 ? '先' : '后'));
+    setTutorial(mode === 'tutorial' ? '教学关卡：硬币固定为 B，B 先手。' : '');
+    startCoin(mode === 'tutorial' ? 'B' : (cryptoRandom() < 0.5 ? 'A' : 'B'));
   }
 
   function startCoin(forcedResult) {
@@ -4124,45 +4198,47 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     updateHUD();
     if (S.coinTimer) clearTimeout(S.coinTimer);
     if (S.coinAnim) S.coinAnim.cancel();
+    if (S.coinHandler) { window.removeEventListener('message', S.coinHandler); S.coinHandler = null; }
+    if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
     S.coinTimer = null;
     S.coinAnim = null;
-    const result = forcedResult || (cryptoRandom() < 0.5 ? '先' : '后');
+    const result = forcedResult || (cryptoRandom() < 0.5 ? 'A' : 'B');
 
-    if (TEST_MODE || !window.Anim3D) {
-      S.coinTimer = setTimeout(() => finishCoin(result, token), 60);
+    if (TEST_MODE || !dom.coinFrame) {
+      S.coinTimer = setTimeout(() => finishCoin(result, token), 80);
       return;
     }
 
-    const stageRect = dom.tableStage.getBoundingClientRect();
-    const tableRect = dom.tableOuter.getBoundingClientRect();
-    const W = Math.max(320, stageRect.width);
-    const H = Math.max(240, stageRect.height);
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const tableX = tableRect.left + tableRect.width / 2 - stageRect.left;
-    const tableY = tableRect.top + tableRect.height / 2 - stageRect.top;
-    const radius = Math.max(40, Math.min(76, tableRect.width * 0.08, tableRect.height * 0.13));
-    dom.coinCanvas.classList.add('is-active');
+    const face = result === 'A' ? 'heads' : 'tails';
     dom.game.classList.add('is-coining');
-    S.coinAnim = window.Anim3D.coin(dom.coinCanvas, {
-      width: W,
-      height: H,
-      dpr: dpr,
-      tableX: tableX,
-      tableY: tableY,
-      radius: radius,
-      result: result,
-      onDone: () => finishCoin(result, token)
-    });
+    dom.coinFrame.classList.add('is-active');
+    dom.coinFrame.src = 'coin-game.html?embed=1&face=' + face + '&t=' + Date.now();
+
+    const handler = event => {
+      const data = event.data;
+      if (!data || data.type !== 'coin-toss-result') return;
+      const tossed = data.face === 'heads' ? 'A' : 'B';
+      finishCoin(tossed, token);
+    };
+    S.coinHandler = handler;
+    window.addEventListener('message', handler);
+    S.coinTimeout = setTimeout(() => finishCoin(result, token), 14000);
   }
 
   function finishCoin(result, token) {
     if (token !== S.coinToken) return;
+    if (S.coinHandler) { window.removeEventListener('message', S.coinHandler); S.coinHandler = null; }
+    if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
     S.coinTimer = null;
     S.coinAnim = null;
+    if (dom.coinFrame) {
+      dom.coinFrame.classList.remove('is-active');
+      dom.coinFrame.src = 'about:blank';
+    }
     dom.coinCanvas.classList.remove('is-active');
     dom.game.classList.remove('is-coining');
     if (S.mode === 'tutorial') tutorialAiFirst();
-    else beginTurn(result === '先' ? 0 : 1);
+    else beginTurn(result === 'A' ? 0 : 1);
   }
 
   function beginTurn(active, options = {}) {
@@ -4179,8 +4255,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.scoreKey = null;
     updateHUD();
     renderTableDice([]);
-    dom.tableStatus.textContent = active === 0 ? '准备投骰' : '对方准备投骰';
-    showBanner(active === 0 ? '轮到你了' : '轮到对方了');
+    dom.tableStatus.textContent = active === 0 ? '准备投骰' : 'B准备投骰';
+    showBanner(active === 0 ? '轮到A了' : '轮到B了');
     const token = S.turnToken;
     later(1150, () => {
       if (S.turnToken !== token) return;
@@ -4195,7 +4271,34 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     dom.tableStatus.textContent = '骰子投掷中…';
     const token = S.turnToken;
     const forced = options && options.forcedDice ? options.forcedDice.slice() : null;
+    if (S.dicePoll) { clearInterval(S.dicePoll); S.dicePoll = null; }
 
+    const frameWin = dom.diceFrame && dom.diceFrame.contentWindow;
+    const frameApi = frameWin && frameWin.__diceGame;
+    if (!TEST_MODE && !forced && frameApi) {
+      S.usingDiceFrame = true;
+      dom.game.classList.remove('is-dom-dice');
+      dom.tableDice.innerHTML = '';
+      try { frameApi.roll(); } catch (err) { /* fall back below */ }
+      let waited = 0;
+      S.dicePoll = setInterval(() => {
+        if (S.turnToken !== token) { clearInterval(S.dicePoll); S.dicePoll = null; return; }
+        waited += 120;
+        let snap = null;
+        try { snap = frameApi.snapshot(); } catch (err) { }
+        if (snap && snap.phase === 'settled' && snap.values && snap.values.length === 5) {
+          clearInterval(S.dicePoll); S.dicePoll = null;
+          afterRoll(snap.values.slice(), token, true);
+        } else if (waited > 16000) {
+          clearInterval(S.dicePoll); S.dicePoll = null;
+          startRollDomFallback(token);
+        }
+      }, 120);
+      return;
+    }
+
+    S.usingDiceFrame = false;
+    dom.game.classList.add('is-dom-dice');
     if (TEST_MODE || !window.Anim3D || !dom.diceCanvas || forced) {
       const fixedDice = (forced || Array.from({ length: 5 }, () => randomDie())).sort((a, b) => a - b);
       renderTableDice(fixedDice);
@@ -4238,7 +4341,16 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     });
   }
 
-  function afterRoll(finalDice, token) {
+  function startRollDomFallback(token) {
+    if (S.turnToken !== token) return;
+    S.usingDiceFrame = false;
+    dom.game.classList.add('is-dom-dice');
+    const values = Array.from({ length: 5 }, () => randomDie());
+    renderTableDice(values.slice().sort((a, b) => a - b));
+    afterRoll(values, token);
+  }
+
+  function afterRoll(finalDice, token, fromFrame) {
     if (S.turnToken !== token) return;
     if (S.diceRaf) cancelAnimationFrame(S.diceRaf);
     S.diceRaf = 0;
@@ -4247,15 +4359,23 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     dom.diceCanvas.classList.remove('is-active');
     dom.tableDice.style.visibility = '';
     if (S.rollInterval) { clearInterval(S.rollInterval); S.rollInterval = null; }
-    S.dice = finalDice.slice().sort((a, b) => a - b);
+    const raw = finalDice.slice();
+    const order = raw.map((v, i) => i).sort((a, b) => raw[a] - raw[b] || a - b);
+    S.diceRaw = raw;
+    S.diceMap = order;
+    S.dice = order.map(i => raw[i]);
     S.phase = 'rolled';
-    renderTableDice(S.dice);
+    if (fromFrame) {
+      dom.tableDice.innerHTML = '';
+    } else {
+      renderTableDice(S.dice);
+    }
     dom.tableStatus.textContent = '已投出 · 等待固定';
     updateHUD();
     if (S.active === 0) {
       later(420, () => { if (S.turnToken === token) openFix(); });
     } else {
-      dom.tableStatus.textContent = '对方正在选择固定骰子…';
+      dom.tableStatus.textContent = 'B正在选择固定骰子…';
       later(820, () => { if (S.turnToken === token) aiFix(); });
     }
   }
@@ -4277,7 +4397,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     const rule = fixRuleForStage();
     S.fixRule = rule;
     dom.diceEyebrow.textContent = S.active === 0 ? 'FIX THE DICE' : 'WAIT FOR OPPONENT';
-    dom.diceTitle.textContent = S.active === 0 ? '选择要固定的骰子' : '对方正在固定骰子';
+    dom.diceTitle.textContent = S.active === 0 ? '选择要固定的骰子' : 'B正在固定骰子';
     dom.diceHint.textContent = rule.hint;
     dom.diceConfirm.textContent = '确定固定';
     dom.diceConfirm.disabled = true;
@@ -4366,7 +4486,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.fixed.sort((a, b) => a - b);
     S.phase = 'fixed';
     dom.tableStatus.textContent = '已固定 ' + S.fixed.length + ' 颗骰子';
-    renderTableDice(S.dice, { fixed: S.fixed });
+    if (!S.usingDiceFrame) renderTableDice(S.dice, { fixed: S.fixed });
     showToast('固定了 ' + S.fixed.length + ' 颗骰子', 900);
     updateHUD();
     const token = S.turnToken;
@@ -4380,21 +4500,35 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.fixed = choice.indices.slice();
     if (S.fixed.length === 3) ai.threeFixUsed = true;
     S.phase = 'fixed';
-    renderTableDice(S.dice, { fixed: S.fixed });
-    dom.tableStatus.textContent = '对方已固定 ' + S.fixed.length + ' 颗骰子';
-    showToast('对方固定了 ' + S.fixed.length + ' 颗骰子', 1000);
+    if (!S.usingDiceFrame) renderTableDice(S.dice, { fixed: S.fixed });
+    dom.tableStatus.textContent = 'B已固定 ' + S.fixed.length + ' 颗骰子';
+    showToast('B固定了 ' + S.fixed.length + ' 颗骰子', 1000);
     updateHUD();
     const token = S.turnToken;
     later(620, () => { if (S.turnToken === token) setupAdjust(); });
   }
 
   function setupAdjust(skipDissolve) {
-    if (!skipDissolve && dom.tableDice.querySelector('.die')) {
-      dissolveTableDice();
-      setTimeout(() => {
-        if (S.phase === 'fixed') setupAdjust(true);
-      }, 960);
-      return;
+    if (!skipDissolve) {
+      if (S.usingDiceFrame) {
+        const frameWin = dom.diceFrame && dom.diceFrame.contentWindow;
+        const api = frameWin && frameWin.__diceGame;
+        if (api) {
+          const rawFixed = S.fixed.map(i => (S.diceMap[i] == null ? i : S.diceMap[i]));
+          try { api.dissolve(rawFixed); } catch (err) { }
+        }
+        setTimeout(() => {
+          if (S.phase === 'fixed') setupAdjust(true);
+        }, 1020);
+        return;
+      }
+      if (dom.tableDice.querySelector('.die')) {
+        dissolveTableDice(S.fixed);
+        setTimeout(() => {
+          if (S.phase === 'fixed') setupAdjust(true);
+        }, 960);
+        return;
+      }
     }
     const fixed = S.fixed.slice().sort((a, b) => a - b);
     const fixedValues = fixed.map(i => S.dice[i]);
@@ -4431,19 +4565,19 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     updateHUD();
     dom.tableStatus.textContent = '暗调阶段 · 双方各调各的骰子';
     dom.diceEyebrow.textContent = 'SECRET ADJUST';
-    dom.diceTitle.textContent = humanIsActive ? '暗调你的骰子' : '暗调 · 你分到的骰子';
+    dom.diceTitle.textContent = humanIsActive ? '暗调A的骰子' : '暗调 · A分到的骰子';
     dom.diceHint.textContent = humanValues.length
-      ? '你分到 ' + humanValues.length + ' 颗，可左右调整；对方分到 ' + hiddenCount + ' 颗（暗置）。'
-      : '你分到 0 颗骰子；对方将调整 ' + hiddenCount + ' 颗。';
-    dom.diceConfirm.textContent = humanValues.length ? '确定调整' : '等待对方';
+      ? 'A分到 ' + humanValues.length + ' 颗，可左右调整；B分到 ' + hiddenCount + ' 颗（暗置）。'
+      : 'A分到 0 颗骰子；B将调整 ' + hiddenCount + ' 颗。';
+    dom.diceConfirm.textContent = humanValues.length ? '确定调整' : '等待B';
     dom.diceConfirm.disabled = false;
     dom.diceConfirm.classList.remove('is-hidden');
     dom.diceNote.textContent = '倒计时结束将按当前骰面确定';
     renderAdjustPanel();
     openOverlay(dom.diceOverlay);
     if (S.mode === 'tutorial') {
-      if (S.tutorialStage === 'p1adjust') setTutorial('你分到 1 颗。把它调整好后确定；对方会补上两颗 1。');
-      else if (S.tutorialStage === 'finalAdjust') setTutorial('你分到 1 颗，对方 1 颗（暗置）。对方会补一个 5；直接确定即可凑出四条 5。');
+      if (S.tutorialStage === 'p1adjust') setTutorial('A分到 1 颗。把它调整好后确定；B会补上两颗 1。');
+      else if (S.tutorialStage === 'finalAdjust') setTutorial('A分到 1 颗，B 1 颗（暗置）。B会补一个 5；直接确定即可凑出四条 5。');
     } else {
       setTutorial('');
     }
@@ -4494,7 +4628,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       right.addEventListener('click', () => changeAdjustValue(i, 1));
       const owner = document.createElement('span');
       owner.className = 'die-owner';
-      owner.textContent = '你的 ' + (i + 1);
+      owner.textContent = 'A的 ' + (i + 1);
       slot.appendChild(left);
       slot.appendChild(die);
       slot.appendChild(right);
@@ -4508,11 +4642,11 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       slot.appendChild(die);
       const owner = document.createElement('span');
       owner.className = 'die-owner';
-      owner.textContent = '对方 ' + (i + 1);
+      owner.textContent = 'B ' + (i + 1);
       slot.appendChild(owner);
       dom.diceRow.appendChild(slot);
     }
-    dom.diceMeta.innerHTML = `<span>固定 ${a.fixedCount} 颗</span><span>你 ${a.humanValues.length} 颗</span><span>对方 ${a.hiddenCount} 颗</span><span class="meta-chip">暗置中</span>`;
+    dom.diceMeta.innerHTML = `<span>固定 ${a.fixedCount} 颗</span><span>A ${a.humanValues.length} 颗</span><span>B ${a.hiddenCount} 颗</span><span class="meta-chip">暗置中</span>`;
   }
 
   function changeAdjustValue(index, delta) {
@@ -4531,8 +4665,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     stopTimer();
     S.phase = 'adjustWait';
     dom.diceConfirm.disabled = true;
-    dom.diceConfirm.textContent = '等待对方抉择…';
-    dom.diceHint.textContent = '等待对方抉择…';
+    dom.diceConfirm.textContent = '等待B抉择…';
+    dom.diceHint.textContent = '等待B抉择…';
     dom.diceNote.textContent = '双方确认后将揭晓最终骰面';
     const fixedValues = a.fixedValues.slice();
     const humanValues = a.humanValues.slice();
@@ -4565,7 +4699,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
         if (S.tutorialStage === 'p1adjust') {
           setTutorial('最终骰面是 ' + final.join('、') + '。有三个 1，没有搭配栏。现在只能选择数字栏【1】。');
         } else if (S.tutorialStage === 'finalAdjust') {
-          setTutorial('最终骰面凑出了四个 5。你的 4 条栏还没有填。');
+          setTutorial('最终骰面凑出了四个 5。A的 4 条栏还没有填。');
         }
       }
       later(1200, () => {
@@ -4605,15 +4739,15 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     } else {
       S.scoreAllowed = null;
       updateHUD();
-      dom.tableStatus.textContent = '对方正在计分…';
+      dom.tableStatus.textContent = 'B正在计分…';
       setTutorial(S.mode === 'tutorial' ? S.tutorialText.textContent : '');
       const token = S.turnToken;
       later(950, () => {
         if (S.turnToken !== token || S.active !== 1) return;
         const best = E.bestCategory(S.finalDice, S.players[1].card);
         S.scoreKey = best.key;
-        showToast('对手选择：' + CAT_BY_KEY[best.key].label + ' +' + best.score, 1500);
-        dom.tableStatus.textContent = '对方选择【' + CAT_BY_KEY[best.key].label + '】 +' + best.score;
+        showToast('B选择：' + CAT_BY_KEY[best.key].label + ' +' + best.score, 1500);
+        dom.tableStatus.textContent = 'B选择【' + CAT_BY_KEY[best.key].label + '】 +' + best.score;
         later(850, () => { if (S.turnToken === token) commitScore(best.key); });
       });
     }
@@ -4673,16 +4807,16 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.players[1].card.smallStraight = 20;
     refreshPlayerTotal(1);
     updateHUD();
-    setTutorial('先看对方完成一回合。本教学会固定他的结果为「小顺子 20」。');
-    showBanner('轮到对方了');
+    setTutorial('先看B完成一回合。本教学会固定他的结果为「小顺子 20」。');
+    showBanner('轮到B了');
     renderTableDice([2, 3, 4, 5, 6]);
-    dom.tableStatus.textContent = '对手投出 2 · 3 · 4 · 5 · 6';
-    showToast('对手选择：小顺子 +20', 1800);
+    dom.tableStatus.textContent = 'B投出 2 · 3 · 4 · 5 · 6';
+    showToast('B选择：小顺子 +20', 1800);
     later(1900, () => {
       S.players[1].card.smallStraight = 20;
       refreshPlayerTotal(1);
       updateHUD();
-      showToast('对手完成回合，轮到你了', 1200);
+      showToast('B完成回合，轮到A了', 1200);
       S.active = 0;
       S.tutorialStage = 'p1fix';
       const hand = E.shuffleDice(E.TUTORIAL_OPENING, cryptoRandom);
@@ -4705,9 +4839,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.active = 0;
     const lead = S.players[1].total - S.players[0].total;
     dom.jumpTitle.textContent = '时间快进';
-    dom.jumpText.textContent = '对方的计分纸已全部填完，你只差一个「4条」。此时对方总和 ' + S.players[1].total + '，你 ' + S.players[0].total + '，对方领先 ' + lead + ' 分。';
+    dom.jumpText.textContent = 'B的计分纸已全部填完，A只差一个「4条」。此时B总和 ' + S.players[1].total + '，A ' + S.players[0].total + '，B领先 ' + lead + ' 分。';
     openOverlay(dom.jumpOverlay);
-    setTutorial('时间快进到最后一回合：你只差【4条】。对方领先 ' + lead + ' 分，填出 4 条就能反超。');
+    setTutorial('时间快进到最后一回合：A只差【4条】。B领先 ' + lead + ' 分，填出 4 条就能反超。');
     later(2400, () => {
       closeOverlay(dom.jumpOverlay);
       S.tutorialStage = 'finalFix';
@@ -4720,7 +4854,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   function renderResultCards() {
     return S.players.map((p, i) => {
       const rows = CATS.map(c => `<span>${c.label} <b>${p.card[c.key] == null ? '—' : p.card[c.key]}</b></span>`).join('');
-      return `<div class="result-sheet"><h4>${i === 0 ? '你' : '对手'}<span class="result-total">${p.total}</span></h4><div class="result-sheet-grid">${rows}</div></div>`;
+      return `<div class="result-sheet"><h4>${i === 0 ? 'A' : 'B'}<span class="result-total">${p.total}</span></h4><div class="result-sheet-grid">${rows}</div></div>`;
     }).join('');
   }
 
@@ -4740,9 +4874,9 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     const tie = you === opp;
     dom.resultKicker.textContent = S.mode === 'tutorial' ? 'TUTORIAL CLEAR' : 'GAME OVER';
     dom.resultTitle.textContent = S.mode === 'tutorial'
-      ? (win ? '教学完成 · 你赢了' : '教学完成')
-      : (tie ? '平局' : win ? '你赢了' : '对手获胜');
-    dom.resultScore.textContent = '你 ' + you + ' : ' + opp + ' 对手';
+      ? (win ? '教学完成 · A赢了' : '教学完成')
+      : (tie ? '平局' : win ? 'A赢了' : 'B获胜');
+    dom.resultScore.textContent = 'A ' + you + ' : ' + opp + ' B';
     dom.resultCards.innerHTML = renderResultCards();
     dom.btnAgain.textContent = S.mode === 'tutorial' ? '完成教学' : '再来一局';
     openOverlay(dom.resultOverlay);
@@ -4839,7 +4973,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   }
 
   function showMatched() {
-    dom.matchTitle.textContent = '真人对手已就位';
+    dom.matchTitle.textContent = '真人玩家已就位';
     dom.matchSub.textContent = '联机对局同步即将接入';
     dom.matchSteps.forEach(s => s.classList.add('is-on'));
   }

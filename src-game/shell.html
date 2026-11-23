@@ -21,12 +21,12 @@
       <span class="ambient-ring ambient-ring--3"></span>
       <span class="ambient-die ambient-die--1"></span>
       <span class="ambient-die ambient-die--2"></span>
-      <span class="ambient-coin">先</span>
+      <span class="ambient-coin">A</span>
     </div>
     <div class="menu-frame">
       <p class="eyebrow">FIVE DICE · SCORE SHEET</p>
-      <h1 class="game-title"><span>先</span><i></i><span>后</span></h1>
-      <p class="game-sub">五骰 · 计分纸 · 一局定先后</p>
+      <h1 class="game-title"><span>A</span><i></i><span>B</span></h1>
+      <p class="game-sub">五骰 · 计分纸 · A / B 对局</p>
       <div class="menu-actions">
         <button class="menu-btn" id="btnRules" type="button">
           <span class="menu-btn-index">01</span>
@@ -39,7 +39,7 @@
           <span class="menu-btn-en">MATCH</span>
         </button>
       </div>
-      <button class="practice-link" id="btnPractice" type="button">没有对手？先进入人机练习 <span>→</span></button>
+      <button class="practice-link" id="btnPractice" type="button">没有 B？进入人机练习 <span>→</span></button>
       <p class="menu-foot">掷骰 · 固定 · 暗调 · 纸上定胜负</p>
     </div>
     <div class="menu-corner menu-corner--tl"></div>
@@ -70,11 +70,11 @@
               <li><b>投骰：</b>当前行动方投出五颗骰子。</li>
               <li><b>固定：</b>行动方从五颗骰子中固定 <b>1–3 颗</b>。每方各有一次「固定三颗」的机会，用掉后最多只能固定两颗。</li>
               <li><b>分配：</b>未固定的骰子按以下方式分给双方：
-                <span class="rule-chip">固定 1 颗 → 我 2 / 对方 2</span>
-                <span class="rule-chip">固定 2 颗 → 我 1 / 对方 2</span>
-                <span class="rule-chip">固定 3 颗 → 我 1 / 对方 1</span>
+                <span class="rule-chip">固定 1 颗 → 我 2 / B 2</span>
+                <span class="rule-chip">固定 2 颗 → 我 1 / B 2</span>
+                <span class="rule-chip">固定 3 颗 → 我 1 / B 1</span>
               </li>
-              <li><b>暗调：</b>双方在 60 秒内各自调整自己分到的骰子。每颗骰子可用左右箭头 ±1，1 与 6 循环。对方调整的骰面在揭晓前不可见。</li>
+              <li><b>暗调：</b>A、B 在 60 秒内各自调整自己分到的骰子。每颗骰子可用左右箭头 ±1，1 与 6 循环。B调整的骰面在揭晓前不可见。</li>
               <li><b>揭晓：</b>五颗骰子合并，从小到大排成一行。</li>
               <li><b>计分：</b>行动方在 30 秒内从自己的计分纸中选一栏填入本回合得分；已填过的栏不能再次选择。超时自动选择最靠上的未填栏。</li>
             </ol>
@@ -95,7 +95,7 @@
 
           <section class="rules-block">
             <h3>四、先后与回合</h3>
-            <p>开局投币决定先后。硬币正面为「先」，反面为「后」。每方每回合行动一次，双方各填满十一栏后结算。桌上计时器只有一个指针，一圈代表 60 秒；固定阶段 30 秒，暗调阶段 60 秒，计分阶段 30 秒。</p>
+            <p>开局投币决定先后。硬币 A 面为 A 先手，B 面为 B 先手。每方每回合行动一次，双方各填满十一栏后结算。桌上计时器只有一个指针，一圈代表 60 秒；固定阶段 30 秒，暗调阶段 60 秒，计分阶段 30 秒。</p>
           </section>
 
           <section class="rules-block rules-block--note">
@@ -105,7 +105,7 @@
         </div>
 
         <footer class="rules-foot">
-          <span class="rules-foot-note">每次开局，骰面与对手选择都会变化。</span>
+          <span class="rules-foot-note">每次开局，骰面与B选择都会变化。</span>
           <button class="primary-btn" id="btnTutorial" type="button">进入教学</button>
         </footer>
       </article>
@@ -117,7 +117,7 @@
     <header class="game-hud">
       <div class="hud-player hud-player--opponent">
         <span class="hud-dot"></span>
-        <div class="hud-name-wrap"><span class="hud-role">对手</span><strong id="hudOppName">练习对手</strong></div>
+        <div class="hud-name-wrap"><span class="hud-role">B</span><strong id="hudOppName">练习B</strong></div>
         <span class="hud-score" id="hudOppScore">0</span>
       </div>
       <div class="hud-center">
@@ -126,12 +126,13 @@
       </div>
       <div class="hud-player hud-player--you">
         <span class="hud-score" id="hudPlayerScore">0</span>
-        <div class="hud-name-wrap hud-name-wrap--right"><span class="hud-role">你</span><strong id="hudPlayerName">玩家</strong></div>
+        <div class="hud-name-wrap hud-name-wrap--right"><span class="hud-role">A</span><strong id="hudPlayerName">玩家</strong></div>
         <span class="hud-dot hud-dot--you"></span>
       </div>
     </header>
 
     <main class="table-stage" id="tableStage">
+      <iframe class="dice-frame" id="diceFrame" src="dice-game.html?embed=1&amp;game=1" title="3D 骰桌" tabindex="-1" aria-hidden="true"></iframe>
       <div class="table-outer" id="tableOuter">
         <div class="table-felt">
           <div class="felt-grain"></div>
@@ -177,9 +178,9 @@
         <span class="clock-caption">TURN CLOCK</span>
       </div>
 
-      <button class="mini-paper mini-paper--opponent" id="miniPaper1" type="button" aria-label="查看对手计分表">
+      <button class="mini-paper mini-paper--opponent" id="miniPaper1" type="button" aria-label="查看B计分表">
         <span class="mini-paper-pin"></span>
-        <span class="mini-paper-title" id="miniOppTitle">对手</span>
+        <span class="mini-paper-title" id="miniOppTitle">B</span>
         <span class="mini-paper-list" id="miniOppList"></span>
         <span class="mini-paper-total"><em>总和</em><b id="miniOppTotal">0</b></span>
         <span class="mini-paper-badge">表</span>
@@ -187,14 +188,14 @@
 
       <button class="mini-paper mini-paper--player" id="miniPaper0" type="button" aria-label="查看我的计分表">
         <span class="mini-paper-pin"></span>
-        <span class="mini-paper-title" id="miniPlayerTitle">你</span>
+        <span class="mini-paper-title" id="miniPlayerTitle">A</span>
         <span class="mini-paper-list" id="miniPlayerList"></span>
         <span class="mini-paper-total"><em>总和</em><b id="miniPlayerTotal">0</b></span>
         <span class="mini-paper-badge">表</span>
       </button>
 
-      <div class="player-tag player-tag--opponent"><span class="player-tag-dot"></span>对方区域</div>
-      <div class="player-tag player-tag--you">你的区域<span class="player-tag-dot"></span></div>
+      <div class="player-tag player-tag--opponent"><span class="player-tag-dot"></span>B区域</div>
+      <div class="player-tag player-tag--you">A 的区域<span class="player-tag-dot"></span></div>
 
       <div class="center-zone">
         <div class="dice-row table-dice" id="tableDice" aria-live="polite"></div>
@@ -213,6 +214,8 @@
       <div class="footer-turn" id="footerTurn">第 1 / 11 回合</div>
       <div class="footer-hint" id="footerHint">点击纸张查看计分表</div>
     </footer>
+
+    <iframe class="coin-frame" id="coinFrame" src="about:blank" title="投币" tabindex="-1" aria-hidden="true"></iframe>
   </section>
 
   <div class="turn-banner" id="turnBanner" aria-live="polite"></div>

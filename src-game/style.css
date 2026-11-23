@@ -677,7 +677,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .table-clock {
   position: absolute;
   z-index: 5;
-  left: 67%;
+  left: 71%;
   top: 50%;
   width: 112px;
   height: 124px;
@@ -2047,5 +2047,56 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   .game-footer { height: 42px; }
 }
 
+
+/* ===== dice.html / coin.html embedded scene ===== */
+.dice-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+
+.table-outer { display: none !important; }
+
+.screen--game .table-stage {
+  background:
+    radial-gradient(88% 70% at 50% 46%, rgba(30, 55, 45, 0.5) 0%, rgba(7, 14, 12, 0.2) 52%, rgba(2, 6, 5, 0.72) 100%),
+    #040907;
+}
+
+.table-dice { display: none; }
+.screen--game.is-dom-dice .table-dice { display: flex; }
+
+.center-zone {
+  top: auto !important;
+  bottom: 7.5%;
+}
+.screen--game.is-dom-dice .center-zone {
+  top: 54% !important;
+  bottom: auto;
+}
+
+.coin-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #05080c;
+  display: none;
+}
+.coin-frame.is-active { display: block; }
+
+.screen--game.is-coining .game-hud,
+.screen--game.is-coining .game-footer,
+.screen--game.is-coining .table-clock,
+.screen--game.is-coining .mini-paper { visibility: hidden; }
+
+.screen--game.is-dom-dice .dice-frame { display: none; }
 
 
