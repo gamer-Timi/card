@@ -2088,9 +2088,12 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   height: 100%;
   border: 0;
   background: transparent;
-  display: none;
+  display: block;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
-.coin-frame.is-active { display: block; }
+.coin-frame.is-active { visibility: visible; opacity: 1; }
 
 .screen--game.is-coining .game-hud,
 .screen--game.is-coining .game-footer,

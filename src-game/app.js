@@ -824,7 +824,6 @@
     dom.game.classList.remove('is-coining', 'is-dom-dice');
     if (dom.coinFrame) {
       dom.coinFrame.classList.remove('is-active');
-      dom.coinFrame.src = 'about:blank';
     }
     if (dom.coinCanvas) dom.coinCanvas.classList.remove('is-active');
     dom.game.classList.remove('is-coining');
@@ -864,7 +863,13 @@
     const query = forcedFace ? ('&face=' + forcedFace) : ('&seed=' + seed);
     dom.game.classList.add('is-coining');
     dom.coinFrame.classList.add('is-active');
-    dom.coinFrame.src = 'coin-game.html?embed=1' + query + '&t=' + Date.now();
+    const coinWin = dom.coinFrame.contentWindow;
+    const coinApi = coinWin && coinWin.__coin;
+    if (coinApi && typeof coinApi.start === 'function') {
+      try { coinApi.start(seed); } catch (err) { dom.coinFrame.src = 'coin-game.html?embed=1' + query + '&t=' + Date.now(); }
+    } else {
+      dom.coinFrame.src = 'coin-game.html?embed=1' + query + '&t=' + Date.now();
+    }
 
     const handler = event => {
       const data = event.data;
@@ -886,7 +891,6 @@
     if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
     if (dom.coinFrame) {
       dom.coinFrame.classList.remove('is-active');
-      dom.coinFrame.src = 'about:blank';
     }
     if (dom.coinCanvas) dom.coinCanvas.classList.remove('is-active');
     dom.game.classList.remove('is-coining');
@@ -1216,7 +1220,8 @@
         const api = frameWin && frameWin.__diceGame;
         if (api) {
           const rawFixed = S.fixed.map(i => (S.diceMap[i] == null ? i : S.diceMap[i]));
-          try { api.dissolve(rawFixed); } catch (err) { }
+          const rawRemaining = (S.diceRaw || []).map((_, i) => i).filter(i => !rawFixed.includes(i));
+          try { api.dissolve(rawRemaining); } catch (err) { }
         }
         setTimeout(() => {
           if (S.phase === 'fixed') setupAdjust(true);
@@ -1224,7 +1229,8 @@
         return;
       }
       if (dom.tableDice.querySelector('.die')) {
-        dissolveTableDice(S.fixed);
+        const remainingDom = S.dice.map((_, i) => i).filter(i => !S.fixed.includes(i));
+        dissolveTableDice(remainingDom);
         setTimeout(() => {
           if (S.phase === 'fixed') setupAdjust(true);
         }, 960);
@@ -2264,7 +2270,11 @@
           S.fixedRaw = (st.fixedRaw || []).slice();
           S.fixed = (st.fixed || []).slice();
           const api = dom.diceFrame && dom.diceFrame.contentWindow && dom.diceFrame.contentWindow.__diceGame;
-          if (api && S.online.remoteSeed !== null) { try { api.dissolve(S.fixedRaw); } catch (err) { } }
+          if (api && S.online.remoteSeed !== null) {
+            const fixedSet = new Set(S.fixedRaw || []);
+            const remaining = (st.diceRaw || []).map((_, i) => i).filter(i => !fixedSet.has(i));
+            try { api.dissolve(remaining); } catch (err) { }
+          }
           dom.tableStatus.textContent = S.online.otherId + '已固定 ' + S.fixedRaw.length + ' 颗骰子';
         } else {
           S.phase = 'rolled';

@@ -13702,6 +13702,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
 
   const COIN_PARAMS = new URLSearchParams(location.search);
   const COIN_EMBED = COIN_PARAMS.get('embed') === '1';
+  const COIN_GAME = COIN_PARAMS.get('game') === '1';
   const COIN_FACE = COIN_PARAMS.get('face');
   const FORCE_FACE = COIN_FACE === 'heads' || COIN_FACE === 'tails' ? COIN_FACE : null;
   const COIN_SEED_PARAM = COIN_PARAMS.get('seed');
@@ -14649,6 +14650,9 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     els.medallionChar.textContent = heads ? 'A' : 'B';
     els.resultTitle.textContent = heads ? 'A 先手' : 'B 先手';
     els.resultSub.textContent = heads ? 'A · PLAYER A' : 'B · PLAYER B';
+    if (window.parent && window.parent !== window) {
+      try { parent.postMessage({ type: 'coin-toss-result', face: heads ? 'heads' : 'tails' }, '*'); } catch (err) { }
+    }
     els.button.disabled = false;
     els.button.classList.remove('is-rolling');
     els.buttonText.textContent = '再翻一次';
@@ -14786,7 +14790,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   resize();
   requestAnimationFrame(tick);
   setTimeout(() => {
-    if (state.phase === 'boot') startRoll(COIN_SEED === null ? undefined : COIN_SEED);
+    if (!COIN_GAME && state.phase === 'boot') startRoll(COIN_SEED === null ? undefined : COIN_SEED);
   }, 460);
 })();
 
