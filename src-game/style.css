@@ -2083,11 +2083,11 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .coin-frame {
   position: fixed;
   inset: 0;
-  z-index: 180;
+  z-index: 250;
   width: 100%;
   height: 100%;
   border: 0;
-  background: #05080c;
+  background: transparent;
   display: none;
 }
 .coin-frame.is-active { display: block; }
@@ -2103,3 +2103,4 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .screen--game.is-final-dice .table-dice { display: flex; }
 .screen--game.is-final-dice .dice-frame { opacity: 0; }
 .screen--game.is-final-dice .center-zone { top: 54% !important; bottom: auto; }
+

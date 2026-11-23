@@ -13704,6 +13704,8 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   const COIN_EMBED = COIN_PARAMS.get('embed') === '1';
   const COIN_FACE = COIN_PARAMS.get('face');
   const FORCE_FACE = COIN_FACE === 'heads' || COIN_FACE === 'tails' ? COIN_FACE : null;
+  const COIN_SEED_PARAM = COIN_PARAMS.get('seed');
+  const COIN_SEED = COIN_SEED_PARAM === null ? null : (Number(COIN_SEED_PARAM) >>> 0);
 
   if (COIN_EMBED) {
     document.body.classList.add('coin-embed');
@@ -13716,7 +13718,9 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
       body.coin-embed .frame,
       body.coin-embed .grain { display: none !important; }
       body.coin-embed .vignette { opacity: 0.72; }
-      body.coin-embed #stage { background: #05080c; }
+      html, body, body.coin-embed #stage { background: transparent !important; }
+      body.coin-embed .vignette { display: none !important; }
+      body.coin-embed #scene { background: transparent !important; }
     `;
     document.head.appendChild(embedStyle);
   }
@@ -13986,10 +13990,10 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     const aspect = W / Hpx;
     const narrow = aspect < 0.82;
     const fov = (narrow ? 50 : 38) * Math.PI / 180;
-    const fitHalfWidth = narrow ? 3.9 : 7.0;
-    let distance = Math.max(narrow ? 18.2 : 13.0, fitHalfWidth / (Math.tan(fov / 2) * aspect));
-    const elevation = (narrow ? 38 : 35) * Math.PI / 180;
-    const target = [0, 0.7, 0.05];
+    const fitHalfWidth = narrow ? 4.62 : 5.8;
+    let distance = Math.max(narrow ? 19.8 : 10.35, fitHalfWidth / (Math.tan(fov / 2) * aspect));
+    const elevation = (narrow ? 43 : 42) * Math.PI / 180;
+    const target = [0, 0.78, 0.05];
     const eye = [
       target[0],
       target[1] + distance * Math.sin(elevation),
@@ -14579,9 +14583,11 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     if (!bgReady) return;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     ctx.clearRect(0, 0, W, Hpx);
-    ctx.drawImage(bgCanvas, 0, 0, W, Hpx);
-    drawMotes(time);
-    drawLaunchRipple(t || 0);
+    if (!COIN_EMBED) {
+      ctx.drawImage(bgCanvas, 0, 0, W, Hpx);
+      drawMotes(time);
+      drawLaunchRipple(t || 0);
+    }
     if (pose) {
       const p = clampPose(pose);
       drawShadow(p);
@@ -14780,7 +14786,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   resize();
   requestAnimationFrame(tick);
   setTimeout(() => {
-    if (state.phase === 'boot') startRoll();
+    if (state.phase === 'boot') startRoll(COIN_SEED === null ? undefined : COIN_SEED);
   }, 460);
 })();
 

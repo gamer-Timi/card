@@ -837,10 +837,10 @@
     dom.tableStatus.textContent = '投币决定先后';
     updateHUD();
     setTutorial(mode === 'tutorial' ? '教学关卡：硬币固定为 B，B 先手。' : '');
-    startCoin(mode === 'tutorial' ? 'B' : (cryptoRandom() < 0.5 ? 'A' : 'B'));
+    startCoin(null, mode === 'tutorial' ? 345602860 : null);
   }
 
-  function startCoin(forcedResult) {
+  function startCoin(forcedResult, seedOverride) {
     const token = ++S.coinToken;
     stopTimer();
     S.phase = 'coin';
@@ -852,43 +852,62 @@
     if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
     S.coinTimer = null;
     S.coinAnim = null;
-    const result = forcedResult || (cryptoRandom() < 0.5 ? 'A' : 'B');
+    const seed = seedOverride != null ? (seedOverride >>> 0) : ((cryptoRandom() * 0xffffffff) >>> 0);
+    const forcedFace = forcedResult === 'A' ? 'heads' : forcedResult === 'B' ? 'tails' : null;
+    const fallback = forcedResult || (seed % 2 ? 'A' : 'B');
 
     if (TEST_MODE || !dom.coinFrame) {
-      S.coinTimer = setTimeout(() => finishCoin(result, token), 80);
+      S.coinTimer = setTimeout(() => finishCoin(fallback, token), 80);
       return;
     }
 
-    const face = result === 'A' ? 'heads' : 'tails';
+    const query = forcedFace ? ('&face=' + forcedFace) : ('&seed=' + seed);
     dom.game.classList.add('is-coining');
     dom.coinFrame.classList.add('is-active');
-    dom.coinFrame.src = 'coin-game.html?embed=1&face=' + face + '&t=' + Date.now();
+    dom.coinFrame.src = 'coin-game.html?embed=1' + query + '&t=' + Date.now();
 
     const handler = event => {
       const data = event.data;
       if (!data || data.type !== 'coin-toss-result') return;
       const tossed = data.face === 'heads' ? 'A' : 'B';
-      finishCoin(tossed, token);
+      if (S.online) handleOnlineCoin(tossed, token);
+      else finishCoin(tossed, token);
     };
     S.coinHandler = handler;
     window.addEventListener('message', handler);
-    S.coinTimeout = setTimeout(() => finishCoin(result, token), 14000);
+    S.coinTimeout = setTimeout(() => {
+      if (S.online) handleOnlineCoin(fallback, token);
+      else finishCoin(fallback, token);
+    }, 14000);
   }
 
-  function finishCoin(result, token) {
-    if (token !== S.coinToken) return;
+  function hideCoinFrame() {
     if (S.coinHandler) { window.removeEventListener('message', S.coinHandler); S.coinHandler = null; }
     if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
-    S.coinTimer = null;
-    S.coinAnim = null;
     if (dom.coinFrame) {
       dom.coinFrame.classList.remove('is-active');
       dom.coinFrame.src = 'about:blank';
     }
-    dom.coinCanvas.classList.remove('is-active');
+    if (dom.coinCanvas) dom.coinCanvas.classList.remove('is-active');
     dom.game.classList.remove('is-coining');
+  }
+
+  function handleOnlineCoin(result, token) {
+    if (!S.online || token !== S.coinToken) return;
+    S.online.coinDone = true;
+    S.online.coinResult = result;
+    hideCoinFrame();
+    startOnlineTurn(result);
+  }
+
+  function finishCoin(result, token) {
+    if (token !== S.coinToken) return;
+    hideCoinFrame();
+    S.coinTimer = null;
+    S.coinAnim = null;
     if (S.online) {
-      startOnlineTurn(S.online.state.first || S.online.state.active);
+      S.online.coinDone = true;
+      startOnlineTurn(result);
       return;
     }
     if (S.mode === 'tutorial') tutorialAiFirst();
@@ -2008,12 +2027,12 @@
 
   /* ------------------------------- online play ----------------------------- */
   function createOnlineState() {
-    const first = cryptoRandom() < 0.5 ? 'A' : 'B';
     return {
       revision: 1,
       phase: 'coin',
-      first,
-      active: first,
+      first: null,
+      active: null,
+      coinSeed: (cryptoRandom() * 0xffffffff) >>> 0,
       turnNo: 0,
       cards: { A: E.emptyCard(), B: E.emptyCard() },
       threeFix: { A: false, B: false },
@@ -2084,7 +2103,8 @@
       remoteSeed: null,
       remoteRolling: false,
       adjustmentOpenedTurn: null,
-      finalShownTurn: null
+      finalShownTurn: null,
+      coinDone: false
     };
     S.players = [
       { id: selfId, name: selfId, isHuman: true, card: { ...(st.cards[selfId] || E.emptyCard()) }, total: 0, threeFixUsed: !!(st.threeFix && st.threeFix[selfId]) },
@@ -2101,7 +2121,7 @@
     updateMiniPapers();
     dom.tableStatus.textContent = '联机对局 · ' + selfId + ' vs ' + otherId;
     if (st.phase === 'coin' || st.turnNo === 0) {
-      startCoin(st.first || st.active);
+      startCoin(null, st.coinSeed);
     } else {
       startOnlineTurn(st.active);
       applyOnlineState(st);
@@ -2216,7 +2236,7 @@
     updateHUD();
     updateMiniPapers();
     if (st.phase === 'coin') {
-      if (!S.coinHandler && S.phase !== 'coin') startCoin(st.first || st.active);
+      if (!S.online.coinDone && !S.coinHandler && S.phase !== 'coin') startCoin(null, st.coinSeed);
       return;
     }
     if (st.phase === 'over') {
