@@ -785,6 +785,7 @@
     if (S.online) {
       if (S.online.poll) clearInterval(S.online.poll);
       if (S.online.adjustPoll) clearInterval(S.online.adjustPoll);
+      if (S.online.coinPoll) clearInterval(S.online.coinPoll);
       S.online = null;
     }
     stopTimer();
@@ -896,12 +897,66 @@
     dom.game.classList.remove('is-coining');
   }
 
+  function clearOnlineCoinTags() {
+    if (!S.online) return;
+    for (const id of ['A', 'B']) {
+      tdb('delete', { tag: 'timicard_coin_' + S.roomId + '_' + id }).catch(() => {});
+    }
+  }
+
+  function onlineCoinTag(playerId) {
+    return 'timicard_coin_' + S.roomId + '_' + playerId;
+  }
+
   function handleOnlineCoin(result, token) {
     if (!S.online || token !== S.coinToken) return;
     S.online.coinDone = true;
     S.online.coinResult = result;
     hideCoinFrame();
-    startOnlineTurn(result);
+    waitForBothCoins(result, token);
+  }
+
+  function waitForBothCoins(myResult, token) {
+    if (!S.online) return;
+    S.phase = 'coinWait';
+    dom.tableStatus.textContent = '等待双方硬币落定…';
+    showBanner('等待对方投币完成');
+    const self = S.online.selfId;
+    const other = S.online.otherId;
+    const myTag = onlineCoinTag(self);
+    tdb('update', { tag: myTag, value: JSON.stringify({ player: self, result: myResult, t: Date.now() }) }).catch(() => {});
+    const started = Date.now();
+    if (S.online.coinPoll) clearInterval(S.online.coinPoll);
+    const check = async () => {
+      if (!S.online || token !== S.coinToken) return;
+      const found = {};
+      for (const id of [self, other]) {
+        try {
+          const tag = onlineCoinTag(id);
+          const res = await tdb('get', { tag });
+          const raw = tagValue(res, tag);
+          if (raw) found[id] = JSON.parse(raw);
+        } catch (err) { }
+      }
+      if (found[self] && found[other]) {
+        clearInterval(S.online.coinPoll);
+        S.online.coinPoll = null;
+        const authoritative = found['A'] || found[self] || found[other];
+        const first = authoritative.result === 'A' || authoritative.result === 'B' ? authoritative.result : myResult;
+        for (const id of [self, other]) {
+          try { await tdb('delete', { tag: onlineCoinTag(id) }); } catch (err) { }
+        }
+        startOnlineTurn(first);
+        return;
+      }
+      if (Date.now() - started > 16000) {
+        clearInterval(S.online.coinPoll);
+        S.online.coinPoll = null;
+        startOnlineTurn(myResult);
+      }
+    };
+    check();
+    S.online.coinPoll = setInterval(check, 650);
   }
 
   function finishCoin(result, token) {
@@ -1450,10 +1505,19 @@
       if (S.turnToken !== token) return;
       closeOverlay(dom.diceOverlay);
       S.phase = 'reveal';
-      renderTableDice(final);
+      if (S.usingDiceFrame) {
+        const api = dom.diceFrame && dom.diceFrame.contentWindow && dom.diceFrame.contentWindow.__diceGame;
+        const faces = buildFinalFaces(final);
+        dom.game.classList.remove('is-final-dice');
+        dom.tableDice.innerHTML = '';
+        if (api && typeof api.reveal === 'function') { try { api.reveal(faces); } catch (err) { } }
+      } else {
+        dom.game.classList.add('is-final-dice');
+        renderTableDice(final);
+        spawnParticles();
+      }
       dom.tableStatus.textContent = '最终骰面 · ' + final.join(' · ');
       updateHUD();
-      spawnParticles();
       if (S.mode === 'tutorial') {
         if (S.tutorialStage === 'p1adjust') {
           setTutorial('最终骰面是 ' + final.join('、') + '。有三个 1，没有搭配栏。现在只能选择数字栏【1】。');
@@ -1522,9 +1586,11 @@
     const final = fixed.concat(mine, theirs).sort((x, y) => x - y);
     S.finalDice = final;
     S.phase = 'final';
+    const faces = buildFinalFaces(final);
+    S.online.finalFaces = faces;
     if (S.online.adjustPoll) { clearInterval(S.online.adjustPoll); S.online.adjustPoll = null; }
-    publishOnlineState({ phase: 'final', active: S.online.selfId, finalDice: final, turnNo: S.turnNo });
-    showOnlineFinal(final);
+    publishOnlineState({ phase: 'final', active: S.online.selfId, finalDice: final, faces, turnNo: S.turnNo });
+    showOnlineFinal(final, faces);
     later(1200, () => {
       if (!S.online || S.active !== 0) return;
       publishOnlineState({ phase: 'score', active: S.online.selfId, finalDice: final, turnNo: S.turnNo });
@@ -1532,12 +1598,38 @@
     });
   }
 
-  function showOnlineFinal(final) {
+  function buildFinalFaces(finalDice) {
+    const raw = (S.diceRaw || []).slice();
+    const map = (S.diceMap || raw.map((_, i) => i)).slice();
+    const fixedSorted = S.fixed.slice().sort((a, b) => a - b);
+    const fixedRaw = fixedSorted.map(i => (map[i] == null ? i : map[i]));
+    const remainingRaw = raw.map((_, i) => i).filter(i => !fixedRaw.includes(i)).sort((a, b) => a - b);
+    const pool = finalDice.slice();
+    for (const i of fixedSorted) {
+      const v = S.dice[i];
+      const at = pool.indexOf(v);
+      if (at >= 0) pool.splice(at, 1);
+    }
+    const faces = {};
+    remainingRaw.forEach((rawIndex, i) => {
+      faces[rawIndex] = pool[i] == null ? raw[rawIndex] : pool[i];
+    });
+    return faces;
+  }
+
+  function showOnlineFinal(final, faces) {
     S.finalDice = final.slice();
     closeOverlay(dom.diceOverlay);
     S.phase = 'reveal';
-    dom.game.classList.add('is-final-dice');
-    renderTableDice(final);
+    const api = dom.diceFrame && dom.diceFrame.contentWindow && dom.diceFrame.contentWindow.__diceGame;
+    if (S.usingDiceFrame && api && typeof api.reveal === 'function') {
+      dom.game.classList.remove('is-final-dice');
+      dom.tableDice.innerHTML = '';
+      try { api.reveal(faces || {}); } catch (err) { }
+    } else {
+      dom.game.classList.add('is-final-dice');
+      renderTableDice(final);
+    }
     dom.tableStatus.textContent = '最终骰面 · ' + final.join(' · ');
     updateHUD();
     updateMiniPapers();
@@ -1737,8 +1829,10 @@
 
   async function releaseRoom() {
     if (S.online) {
+      clearOnlineCoinTags();
       if (S.online.poll) clearInterval(S.online.poll);
       if (S.online.adjustPoll) clearInterval(S.online.adjustPoll);
+      if (S.online.coinPoll) clearInterval(S.online.coinPoll);
       S.online = null;
     }
     clearRoomPoll();
@@ -2118,6 +2212,7 @@
     ];
     refreshPlayerTotal(0);
     refreshPlayerTotal(1);
+    clearOnlineCoinTags();
     S.active = st.active === selfId ? 0 : 1;
     dom.game.classList.remove('is-dom-dice', 'is-final-dice');
     closeAllOverlays();
@@ -2292,7 +2387,7 @@
       if (activeLocal === 1 && Array.isArray(st.finalDice) && st.finalDice.length === 5) {
         if (S.online.finalShownTurn !== st.turnNo) {
           S.online.finalShownTurn = st.turnNo;
-          showOnlineFinal(st.finalDice);
+          showOnlineFinal(st.finalDice, st.faces || {});
         }
       }
       return;

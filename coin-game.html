@@ -13707,6 +13707,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   const FORCE_FACE = COIN_FACE === 'heads' || COIN_FACE === 'tails' ? COIN_FACE : null;
   const COIN_SEED_PARAM = COIN_PARAMS.get('seed');
   const COIN_SEED = COIN_SEED_PARAM === null ? null : (Number(COIN_SEED_PARAM) >>> 0);
+  const COIN_SPEED = 1.35;
 
   if (COIN_EMBED) {
     document.body.classList.add('coin-embed');
@@ -14713,7 +14714,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     const time = now / 1000;
 
     if (state.phase === 'rolling' && !state.paused) {
-      state.t += dt;
+      state.t += dt * COIN_SPEED;
       if (state.t >= state.duration) {
         state.t = state.duration;
         state.phase = 'settling';

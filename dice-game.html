@@ -13882,7 +13882,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
         const center = vAdd(pc, vScale(n, 0.004));
         return makePip(center, u, v, n, face.value === 1 ? PIP_RADIUS * 1.18 : PIP_RADIUS, !!face.red);
       });
-      SURFACES.push({ kind: 'face', normal: n, verts, pips, value: face.value });
+      SURFACES.push({ kind: 'face', normal: n, u, v, verts, pips, value: face.value });
       CUBE_FACES.push({ value: face.value, normal: n, pips });
     }
 
@@ -14508,6 +14508,15 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     }
   }
 
+  function pipsForValue(surface, value) {
+    const c = vScale(surface.normal, VH);
+    return PIP_LAYOUTS[value].map(([gx, gy]) => {
+      const pc = vAdd(c, vAdd(vScale(surface.u, gx * PIP_SPACING), vScale(surface.v, gy * PIP_SPACING)));
+      const center = vAdd(pc, vScale(surface.normal, 0.004));
+      return makePip(center, surface.u, surface.v, surface.normal, value === 1 ? PIP_RADIUS * 1.18 : PIP_RADIUS, value === 1);
+    });
+  }
+
   function collectDiceItems(poses) {
     const items = [];
     for (let dieIndex = 0; dieIndex < poses.length; dieIndex++) {
@@ -14535,6 +14544,8 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
         }
         depth /= screen.length;
 
+        const override = valueOverrides.get(dieIndex);
+        const topOverride = override != null && surface.kind === 'face' && normal[1] > 0.9;
         items.push({
           kind: surface.kind,
           normal,
@@ -14543,8 +14554,8 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
           dieIndex,
           q,
           pos,
-          pips: surface.pips || null,
-          value: surface.value || 0
+          pips: topOverride ? pipsForValue(surface, override) : (surface.pips || null),
+          value: topOverride ? override : (surface.value || 0)
         });
       }
     }
@@ -14570,6 +14581,14 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     const item = dissolveState.get(index);
     if (!item) return 0;
     return clamp((performance.now() - item.start) / item.duration, 0, 1);
+  }
+
+  function revealProgress(index) {
+    const item = revealState.get(index);
+    if (!item) return 1;
+    const p = clamp((performance.now() - item.start) / item.duration, 0, 1);
+    if (p >= 1) revealState.delete(index);
+    return p;
   }
 
   function spawnDissolveParticle(bounds, p) {
@@ -14611,6 +14630,16 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
         ctx.clip();
         dissolveClip = true;
       }
+      const revealP = revealProgress(item.dieIndex);
+      let revealClip = false;
+      if (revealP < 1) {
+        const b = dieScreenBounds(poses[item.dieIndex]);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(b.x - 2, b.y + b.h * (1 - revealP) - 2, b.w + 4, b.h * revealP + 4);
+        ctx.clip();
+        revealClip = true;
+      }
       if (item.kind === 'face') {
         const fill = shadeColor(item.normal, 'face');
         drawPolygon(item.screen, fill, fill, 0.8);
@@ -14641,6 +14670,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
           drawPolygon(item.screen, null, 'rgba(255, 247, 231, 0.035)', 0.45);
         }
       }
+      if (revealClip) ctx.restore();
       if (dissolveClip) ctx.restore();
     }
   }
@@ -14675,6 +14705,8 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
 
   const dissolveState = new Map();
   const hiddenDice = new Set();
+  const revealState = new Map();
+  const valueOverrides = new Map();
   let dissolveParticles = [];
 
   const state = {
@@ -14947,6 +14979,8 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   function resetDissolve() {
     dissolveState.clear();
     hiddenDice.clear();
+    revealState.clear();
+    valueOverrides.clear();
     dissolveParticles = [];
   }
 
@@ -14968,12 +15002,31 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     }
   }
 
+  function gameReveal(faces) {
+    const poses = state.frames ? getPosesAt(state.t) : null;
+    if (!poses) return;
+    for (const [raw, value] of Object.entries(faces || {})) {
+      const index = Number(raw);
+      const v = Number(value);
+      if (Number.isInteger(index) && index >= 0 && index < poses.length && v >= 1 && v <= 6) {
+        valueOverrides.set(index, v);
+      }
+    }
+    const now = performance.now();
+    for (const index of Array.from(hiddenDice)) {
+      hiddenDice.delete(index);
+      const bounds = dieScreenBounds(poses[index]);
+      revealState.set(index, { start: now, duration: 900, bounds });
+    }
+  }
+
   window.__diceGame = {
     roll(seed) {
       resetDissolve();
       startRoll(seed);
     },
     dissolve(indices) { gameDissolve(indices || []); },
+    reveal(faces) { gameReveal(faces || {}); },
     reset() {
       resetDissolve();
       state.phase = 'boot';
@@ -14990,6 +15043,8 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
         final: state.final,
         hidden: Array.from(hiddenDice),
         dissolving: Array.from(dissolveState.keys()),
+        revealing: Array.from(revealState.keys()),
+        overrides: Object.fromEntries(valueOverrides.entries()),
         dissolveDone: dissolveState.size === 0 && hiddenDice.size > 0
       };
     }
