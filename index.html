@@ -333,6 +333,111 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .menu-corner--tl { top: 24px; left: 24px; border-width: 1px 0 0 1px; }
 .menu-corner--br { bottom: 24px; right: 24px; border-width: 0 1px 1px 0; }
 
+
+/* ============================== AI SELECT ============================== */
+.screen--ai {
+  overflow: auto;
+  padding: 44px 20px;
+  background:
+    radial-gradient(78% 64% at 50% 28%, #122a23, #081310 62%, #040807);
+}
+
+.ai-select-wrap {
+  position: relative;
+  width: min(920px, 92vw);
+  margin: 0 auto;
+  padding: 34px 34px 40px;
+  border: 1px solid rgba(215, 181, 117, 0.18);
+  background:
+    linear-gradient(160deg, rgba(23, 43, 36, 0.86), rgba(7, 14, 12, 0.9)),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 4px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+
+.ai-select-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.ai-select-head h2 {
+  margin: 6px 0 0;
+  color: #efe2c4;
+  font-family: var(--serif);
+  font-size: clamp(25px, 4vw, 40px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.ai-select-sub {
+  margin: 7px 0 0;
+  color: rgba(215, 181, 117, 0.6);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+}
+
+.ai-level-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-level-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 132px;
+  padding: 18px 10px;
+  border: 1px solid rgba(215, 181, 117, 0.22);
+  border-radius: 2px;
+  background: rgba(5, 11, 9, 0.44);
+  color: rgba(244, 235, 215, 0.92);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ai-level-btn:hover,
+.ai-level-btn:focus-visible {
+  transform: translateY(-4px);
+  border-color: rgba(215, 181, 117, 0.65);
+  background: rgba(30, 56, 46, 0.65);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
+  outline: none;
+}
+
+.ai-level-mark {
+  color: rgba(215, 181, 117, 0.46);
+  font-family: var(--serif);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+}
+
+.ai-level-btn strong {
+  font-family: var(--serif);
+  font-size: clamp(18px, 2.2vw, 26px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .screen--ai { padding: 20px 12px; }
+  .ai-select-wrap { padding: 24px 18px 26px; }
+  .ai-select-head { margin-bottom: 18px; }
+  .ai-level-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .ai-level-btn { min-height: 92px; padding: 12px 8px; }
+}
+
+@media (max-width: 380px) {
+  .ai-level-grid { grid-template-columns: 1fr; }
+  .ai-level-btn { min-height: 68px; flex-direction: row; gap: 12px; }
+}
+
 /* ============================== rules ============================== */
 .screen--rules {
   background:
@@ -1221,19 +1326,24 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   left: 50%;
   top: 14%;
   transform: translate(-50%, -50%) scale(0.96);
-  padding: 18px 40px;
+  width: max-content;
+  max-width: min(92vw, 900px);
+  padding: clamp(12px, 2vw, 18px) clamp(20px, 4vw, 40px);
+  text-align: center;
   border-top: 1px solid rgba(215, 181, 117, 0.3);
   border-bottom: 1px solid rgba(215, 181, 117, 0.3);
   background: linear-gradient(90deg, transparent, rgba(5, 11, 8, 0.86) 22%, rgba(5, 11, 8, 0.86) 78%, transparent);
   font-family: var(--serif);
-  font-size: clamp(22px, 3vw, 38px);
-  letter-spacing: 0.2em;
+  font-size: clamp(18px, 3.4vw, 36px);
+  line-height: 1.35;
+  letter-spacing: 0.12em;
   color: rgba(244, 235, 215, 0.94);
   text-shadow: 0 5px 24px #000;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   transition: opacity 0.3s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.3s;
 }
 
@@ -1247,16 +1357,21 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   position: absolute;
   z-index: 300;
   left: 50%;
-  top: 12px;
+  top: max(10px, env(safe-area-inset-top));
   transform: translate(-50%, -8px);
+  width: max-content;
+  max-width: min(92vw, 680px);
   padding: 9px 16px;
   border: 1px solid rgba(215, 181, 117, 0.35);
   border-radius: 999px;
   background: rgba(5, 10, 8, 0.96);
   color: rgba(245, 230, 199, 0.96);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
+  font-size: clamp(10px, 1.1vw, 12px);
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -1386,7 +1501,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  flex-wrap: wrap;
+  gap: 10px 18px;
   margin-top: 22px;
 }
 
@@ -1711,6 +1827,16 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   z-index: 2;
   transform: translateX(-50%);
 }
+
+.overlay--dice.is-peeking {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  pointer-events: none;
+}
+
+.overlay--dice.is-peeking .dice-modal { display: none; }
+.overlay--dice.is-peeking #dicePeekBar { display: flex; pointer-events: auto; }
 
 .overlay--paper.is-peeking {
   background: transparent;
@@ -2148,11 +2274,33 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
           <span class="menu-btn-en">MATCH</span>
         </button>
       </div>
-      <button class="practice-link" id="btnPractice" type="button">没有 B？进入人机练习 <span>→</span></button>
+      <button class="practice-link" id="btnPractice" type="button">人机训练 <span>→</span></button>
       <p class="menu-foot">掷骰 · 固定 · 暗调 · 纸上定胜负</p>
     </div>
     <div class="menu-corner menu-corner--tl"></div>
     <div class="menu-corner menu-corner--br"></div>
+  </section>
+
+
+  <!-- ============================== AI SELECT ============================== -->
+  <section class="screen screen--ai" id="aiSelectScreen">
+    <div class="ai-select-wrap">
+      <header class="ai-select-head">
+        <div>
+          <p class="eyebrow">AI TRAINING</p>
+          <h2>人机训练</h2>
+          <p class="ai-select-sub">选择难度</p>
+        </div>
+        <button class="ghost-btn" id="btnAIBack" type="button">返回</button>
+      </header>
+      <div class="ai-level-grid">
+        <button class="ai-level-btn" data-ai-level="gua" type="button"><strong>挂</strong></button>
+        <button class="ai-level-btn" data-ai-level="hang" type="button"><strong>夯</strong></button>
+        <button class="ai-level-btn" data-ai-level="ren" type="button"><strong>人上人</strong></button>
+        <button class="ai-level-btn" data-ai-level="bot" type="button"><strong>人机</strong></button>
+        <button class="ai-level-btn" data-ai-level="trash" type="button"><strong>拉完了</strong></button>
+      </div>
+    </div>
   </section>
 
   <!-- ============================== RULES ============================== -->
@@ -2361,8 +2509,12 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
       <div class="dice-meta" id="diceMeta"></div>
       <div class="modal-actions">
         <span class="modal-note" id="diceNote"></span>
+        <button class="ghost-btn" id="btnViewDiceTable" type="button">查看桌面</button>
         <button class="primary-btn" id="diceConfirm" type="button">确定</button>
       </div>
+    </div>
+    <div class="peek-bar" id="dicePeekBar">
+      <button class="primary-btn" id="btnBackDice" type="button">返回操作</button>
     </div>
   </div>
 
@@ -3648,10 +3800,10 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
   function readAILevel() {
     try {
-      const q = new URLSearchParams(location.search).get('ai');
-      if (q) return E.normalizeAILevel(q);
       const stored = localStorage.getItem('timicard_ai_level');
       if (stored) return E.normalizeAILevel(stored);
+      const q = new URLSearchParams(location.search).get('ai');
+      if (q) return E.normalizeAILevel(q);
     } catch (err) { }
     return E.DEFAULT_AI_LEVEL;
   }
@@ -3762,6 +3914,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   /* ------------------------------- dom refs ------------------------------- */
   const dom = {
     menu: $('menuScreen'),
+    aiSelect: $('aiSelectScreen'),
     rules: $('rulesScreen'),
     game: $('gameScreen'),
     hudOppName: $('hudOppName'),
@@ -3807,6 +3960,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     diceMeta: $('diceMeta'),
     diceNote: $('diceNote'),
     diceConfirm: $('diceConfirm'),
+    btnViewDiceTable: $('btnViewDiceTable'),
+    btnBackDice: $('btnBackDice'),
     diceTimer: $('diceTimer'),
     paperOverlay: $('paperOverlay'),
     paperKicker: $('paperKicker'),
@@ -3990,6 +4145,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   function showScreen(name) {
     S.screen = name;
     dom.menu.classList.toggle('is-active', name === 'menu');
+    dom.aiSelect.classList.toggle('is-active', name === 'aiSelect');
     dom.rules.classList.toggle('is-active', name === 'rules');
     dom.game.classList.toggle('is-active', name === 'game');
     if (name !== 'game') closeAllOverlays();
@@ -3997,6 +4153,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
   function openOverlay(el) {
     if (!el) return;
+    el.classList.remove('is-peeking');
     el.classList.add('is-open');
     el.setAttribute('aria-hidden', 'false');
   }
@@ -4004,6 +4161,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   function closeOverlay(el) {
     if (!el) return;
     el.classList.remove('is-open');
+    el.classList.remove('is-peeking');
     el.setAttribute('aria-hidden', 'true');
   }
 
@@ -4013,7 +4171,14 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   }
 
   function showToast(text, ms = 1500) {
-    dom.toast.textContent = text;
+    const message = String(text == null ? '' : text).trim();
+    if (!message) return;
+    if (dom.toast.textContent === message && dom.toast.classList.contains('is-visible')) {
+      const keep = ++S.toastId;
+      setTimeout(() => { if (keep === S.toastId) dom.toast.classList.remove('is-visible'); }, ms);
+      return;
+    }
+    dom.toast.textContent = message;
     dom.toast.classList.add('is-visible');
     const id = ++S.toastId;
     setTimeout(() => {
@@ -4022,7 +4187,14 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   }
 
   function showBanner(text, ms = 1300) {
-    dom.turnBanner.textContent = text;
+    const message = String(text == null ? '' : text).trim();
+    if (!message) return;
+    if (dom.turnBanner.textContent === message && dom.turnBanner.classList.contains('is-visible')) {
+      const keep = ++S.bannerId;
+      setTimeout(() => { if (keep === S.bannerId) dom.turnBanner.classList.remove('is-visible'); }, ms);
+      return;
+    }
+    dom.turnBanner.textContent = message;
     dom.turnBanner.classList.add('is-visible');
     const id = ++S.bannerId;
     setTimeout(() => {
@@ -4133,8 +4305,8 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     const fraction = clockOn && clockDuration ? Math.min(1, clockRemaining / 60000) : 0;
     dom.clockArc.style.strokeDashoffset = String(CLOCK_C * (1 - fraction));
     dom.clockArc.classList.toggle('is-urgent', t.active && clockRemaining <= 10000);
-    const elapsedSeconds = clockOn && clockDuration ? (clockDuration - clockRemaining) / 1000 : 0;
-    dom.clockHand.style.transform = 'rotate(' + (-((elapsedSeconds % 60) / 60) * 360) + 'deg)';
+    const handSeconds = clockOn ? Math.max(0, Math.min(60, clockRemaining / 1000)) : 0;
+    dom.clockHand.style.transform = 'rotate(' + ((handSeconds / 60) * 360) + 'deg)';
     setMiniClock(dom.diceTimer, clockRemaining, clockDuration, clockOn && dom.diceOverlay.classList.contains('is-open'));
     setMiniClock(dom.paperTimer, clockRemaining, clockDuration, clockOn && dom.paperOverlay.classList.contains('is-open'));
     if (t.active && clockRemaining <= 0 && !t.fired) {
@@ -4475,7 +4647,6 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     if (!S.scoreKey) { showToast('请先选择一个栏目'); return; }
     const key = S.scoreKey;
     closeOverlay(dom.paperOverlay);
-    stopTimer();
     S.scoreMode = false;
     commitScore(key);
   }
@@ -4518,10 +4689,17 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     showScreen('rules');
   }
 
+  function goAISelect() {
+    showScreen('aiSelect');
+  }
+
   /* ----------------------------- game lifecycle --------------------------- */
-  function startGame(mode, tutorialTraining = false) {
+  function startGame(mode, tutorialTraining = false, forcedLevel = null) {
     S.tutorialTraining = !!tutorialTraining;
-    S.aiLevel = tutorialTraining ? 'tutorial' : readAILevel();
+    S.aiLevel = tutorialTraining ? 'tutorial' : (forcedLevel ? E.normalizeAILevel(forcedLevel) : readAILevel());
+    if (forcedLevel) {
+      try { localStorage.setItem('timicard_ai_level', S.aiLevel); } catch (err) { }
+    }
     if (S.online) {
       if (S.online.poll) clearInterval(S.online.poll);
       if (S.online.adjustPoll) clearInterval(S.online.adjustPoll);
@@ -4610,7 +4788,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.coinRequestId = requestId;
     S.coinFallback = false;
     let sent = false;
-    if (S.coinReady) sent = postToCoin({ type: 'coin-start', seed, requestId });
+    if (S.coinReady) sent = postToCoin({ type: 'coin-start', seed, requestId, face: forcedFace });
     if (!sent) {
       S.coinFallback = true;
       dom.coinFrame.src = 'coin-game.html?embed=1' + query + '&t=' + Date.now();
@@ -6219,13 +6397,20 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   $('btnMatch').addEventListener('click', startMatch);
   $('btnRulesBack').addEventListener('click', goMenu);
   $('btnTutorial').addEventListener('click', startTutorial);
+  $('btnAIBack').addEventListener('click', goMenu);
   $('btnMatchPractice').addEventListener('click', () => {
     S.matchToken++;
     releaseRoom();
     closeOverlay(dom.matchOverlay);
-    startGame('ai');
+    goAISelect();
   });
-  $('btnPractice').addEventListener('click', () => { releaseRoom(); startGame('ai'); });
+  $('btnPractice').addEventListener('click', () => { releaseRoom(); goAISelect(); });
+  document.querySelectorAll('[data-ai-level]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      releaseRoom();
+      startGame('ai', false, btn.dataset.aiLevel);
+    });
+  });
   $('btnMatchCancel').addEventListener('click', cancelMatch);
   $('btnQuit').addEventListener('click', () => {
     if (S.phase !== 'over' && S.players.length) {
@@ -6273,6 +6458,15 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   });
   dom.paperConfirm.addEventListener('click', confirmPaper);
   dom.paperClose.addEventListener('click', () => closeOverlay(dom.paperOverlay));
+  dom.btnViewDiceTable.addEventListener('click', () => {
+    if (!dom.diceOverlay.classList.contains('is-open')) return;
+    if (S.phase !== 'fix' && S.phase !== 'adjust') return;
+    dom.diceOverlay.classList.add('is-peeking');
+  });
+  dom.btnBackDice.addEventListener('click', () => {
+    dom.diceOverlay.classList.remove('is-peeking');
+  });
+
   dom.btnViewTable.addEventListener('click', () => {
     if (!S.scoreMode) return;
     dom.paperOverlay.classList.add('is-peeking');
