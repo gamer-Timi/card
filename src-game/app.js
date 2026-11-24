@@ -437,6 +437,14 @@
     return Math.min(11, Math.max(1, Math.floor(S.turnNo / 2) + 1));
   }
 
+  function setPlayerTag(tag, text) {
+    if (!tag) return;
+    for (const node of tag.childNodes) {
+      if (node.nodeType === 3) { node.nodeValue = text; return; }
+    }
+    tag.insertBefore(document.createTextNode(text), tag.firstChild);
+  }
+
   function updateHUD() {
     const you = S.players[0], opp = S.players[1];
     if (!you || !opp) return;
@@ -873,6 +881,7 @@
   function goMenu() {
     stopTimer();
     clearLater();
+    postToDice({ type: 'dice-reset' });
     releaseRoom();
     S.gameToken++;
     S.coinToken++;
@@ -963,6 +972,7 @@
     closeAllOverlays();
     showScreen('game');
     renderTableDice([]);
+    postToDice({ type: 'dice-reset' });
     dom.tableStatus.textContent = '投币决定先后';
     updateHUD();
     setTutorial(mode === 'tutorial' ? '教学关卡：硬币固定为 B，B 先手。' : '');
@@ -1060,36 +1070,38 @@
     tdb('update', { tag: myTag, value: JSON.stringify({ player: self, result: myResult, t: Date.now() }) }).catch(() => {});
     const started = Date.now();
     if (S.online.coinPoll) clearInterval(S.online.coinPoll);
+    let checking = false;
     const check = async () => {
-      if (!S.online || token !== S.coinToken) return;
+      if (!S.online || token !== S.coinToken || checking) return;
+      checking = true;
       const found = {};
-      for (const id of [self, other]) {
-        try {
-          const tag = onlineCoinTag(id);
-          const res = await tdb('get', { tag });
-          const raw = tagValue(res, tag);
-          if (raw) found[id] = JSON.parse(raw);
-        } catch (err) { }
-      }
+      try {
+        const pairs = await Promise.all([self, other].map(async id => {
+          try {
+            const tag = onlineCoinTag(id);
+            const res = await tdb('get', { tag });
+            const raw = tagValue(res, tag);
+            return raw ? [id, JSON.parse(raw)] : null;
+          } catch (err) { return null; }
+        }));
+        for (const pair of pairs) if (pair) found[pair[0]] = pair[1];
+      } finally { checking = false; }
       if (found[self] && found[other]) {
         clearInterval(S.online.coinPoll);
         S.online.coinPoll = null;
         const authoritative = found['A'] || found[self] || found[other];
         const first = authoritative.result === 'A' || authoritative.result === 'B' ? authoritative.result : myResult;
-        for (const id of [self, other]) {
-          try { await tdb('delete', { tag: onlineCoinTag(id) }); } catch (err) { }
-        }
         startOnlineTurn(first);
         return;
       }
-      if (Date.now() - started > 16000) {
+      if (Date.now() - started > 12000) {
         clearInterval(S.online.coinPoll);
         S.online.coinPoll = null;
         startOnlineTurn(myResult);
       }
     };
     check();
-    S.online.coinPoll = setInterval(check, 650);
+    S.online.coinPoll = setInterval(check, 380);
   }
 
   function finishCoin(result, token) {
@@ -1629,7 +1641,6 @@
     if (S.phase !== 'adjust' || !S.adjust) return;
     const a = S.adjust;
     const token = S.turnToken;
-    stopTimer();
     S.phase = 'adjustWait';
     dom.diceConfirm.disabled = true;
     dom.diceConfirm.textContent = '等待' + playerName(1) + '抉择…';
@@ -1700,7 +1711,6 @@
     const a = S.adjust;
     const values = a.humanValues.slice();
     const tag = onlineAdjustTag(S.online.selfId);
-    stopTimer();
     S.phase = 'adjustWait';
     dom.diceConfirm.disabled = true;
     dom.diceConfirm.textContent = '等待' + S.online.otherId + '抉择…';
@@ -2335,6 +2345,7 @@
     S.gameToken++;
     stopTimer();
     clearLater();
+    postToDice({ type: 'dice-reset' });
     if (S.coinHandler) { window.removeEventListener('message', S.coinHandler); S.coinHandler = null; }
     if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
     if (S.dicePoll) { clearInterval(S.dicePoll); S.dicePoll = null; }
@@ -2669,7 +2680,7 @@
   dom.paperClose.addEventListener('click', () => closeOverlay(dom.paperOverlay));
   dom.btnViewDiceTable.addEventListener('click', () => {
     if (!dom.diceOverlay.classList.contains('is-open')) return;
-    if (S.phase !== 'fix' && S.phase !== 'adjust') return;
+    if (S.phase !== 'fix' && S.phase !== 'adjust' && S.phase !== 'adjustWait') return;
     dom.diceOverlay.classList.add('is-peeking');
   });
   dom.btnBackDice.addEventListener('click', () => {
