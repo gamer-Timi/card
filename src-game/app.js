@@ -10,10 +10,10 @@
 
   function readAILevel() {
     try {
-      const q = new URLSearchParams(location.search).get('ai');
-      if (q) return E.normalizeAILevel(q);
       const stored = localStorage.getItem('timicard_ai_level');
       if (stored) return E.normalizeAILevel(stored);
+      const q = new URLSearchParams(location.search).get('ai');
+      if (q) return E.normalizeAILevel(q);
     } catch (err) { }
     return E.DEFAULT_AI_LEVEL;
   }
@@ -124,6 +124,7 @@
   /* ------------------------------- dom refs ------------------------------- */
   const dom = {
     menu: $('menuScreen'),
+    aiSelect: $('aiSelectScreen'),
     rules: $('rulesScreen'),
     game: $('gameScreen'),
     hudOppName: $('hudOppName'),
@@ -169,6 +170,8 @@
     diceMeta: $('diceMeta'),
     diceNote: $('diceNote'),
     diceConfirm: $('diceConfirm'),
+    btnViewDiceTable: $('btnViewDiceTable'),
+    btnBackDice: $('btnBackDice'),
     diceTimer: $('diceTimer'),
     paperOverlay: $('paperOverlay'),
     paperKicker: $('paperKicker'),
@@ -352,6 +355,7 @@
   function showScreen(name) {
     S.screen = name;
     dom.menu.classList.toggle('is-active', name === 'menu');
+    dom.aiSelect.classList.toggle('is-active', name === 'aiSelect');
     dom.rules.classList.toggle('is-active', name === 'rules');
     dom.game.classList.toggle('is-active', name === 'game');
     if (name !== 'game') closeAllOverlays();
@@ -359,6 +363,7 @@
 
   function openOverlay(el) {
     if (!el) return;
+    el.classList.remove('is-peeking');
     el.classList.add('is-open');
     el.setAttribute('aria-hidden', 'false');
   }
@@ -366,6 +371,7 @@
   function closeOverlay(el) {
     if (!el) return;
     el.classList.remove('is-open');
+    el.classList.remove('is-peeking');
     el.setAttribute('aria-hidden', 'true');
   }
 
@@ -375,7 +381,14 @@
   }
 
   function showToast(text, ms = 1500) {
-    dom.toast.textContent = text;
+    const message = String(text == null ? '' : text).trim();
+    if (!message) return;
+    if (dom.toast.textContent === message && dom.toast.classList.contains('is-visible')) {
+      const keep = ++S.toastId;
+      setTimeout(() => { if (keep === S.toastId) dom.toast.classList.remove('is-visible'); }, ms);
+      return;
+    }
+    dom.toast.textContent = message;
     dom.toast.classList.add('is-visible');
     const id = ++S.toastId;
     setTimeout(() => {
@@ -384,7 +397,14 @@
   }
 
   function showBanner(text, ms = 1300) {
-    dom.turnBanner.textContent = text;
+    const message = String(text == null ? '' : text).trim();
+    if (!message) return;
+    if (dom.turnBanner.textContent === message && dom.turnBanner.classList.contains('is-visible')) {
+      const keep = ++S.bannerId;
+      setTimeout(() => { if (keep === S.bannerId) dom.turnBanner.classList.remove('is-visible'); }, ms);
+      return;
+    }
+    dom.turnBanner.textContent = message;
     dom.turnBanner.classList.add('is-visible');
     const id = ++S.bannerId;
     setTimeout(() => {
@@ -495,8 +515,8 @@
     const fraction = clockOn && clockDuration ? Math.min(1, clockRemaining / 60000) : 0;
     dom.clockArc.style.strokeDashoffset = String(CLOCK_C * (1 - fraction));
     dom.clockArc.classList.toggle('is-urgent', t.active && clockRemaining <= 10000);
-    const elapsedSeconds = clockOn && clockDuration ? (clockDuration - clockRemaining) / 1000 : 0;
-    dom.clockHand.style.transform = 'rotate(' + (-((elapsedSeconds % 60) / 60) * 360) + 'deg)';
+    const handSeconds = clockOn ? Math.max(0, Math.min(60, clockRemaining / 1000)) : 0;
+    dom.clockHand.style.transform = 'rotate(' + ((handSeconds / 60) * 360) + 'deg)';
     setMiniClock(dom.diceTimer, clockRemaining, clockDuration, clockOn && dom.diceOverlay.classList.contains('is-open'));
     setMiniClock(dom.paperTimer, clockRemaining, clockDuration, clockOn && dom.paperOverlay.classList.contains('is-open'));
     if (t.active && clockRemaining <= 0 && !t.fired) {
@@ -837,7 +857,6 @@
     if (!S.scoreKey) { showToast('请先选择一个栏目'); return; }
     const key = S.scoreKey;
     closeOverlay(dom.paperOverlay);
-    stopTimer();
     S.scoreMode = false;
     commitScore(key);
   }
@@ -880,10 +899,17 @@
     showScreen('rules');
   }
 
+  function goAISelect() {
+    showScreen('aiSelect');
+  }
+
   /* ----------------------------- game lifecycle --------------------------- */
-  function startGame(mode, tutorialTraining = false) {
+  function startGame(mode, tutorialTraining = false, forcedLevel = null) {
     S.tutorialTraining = !!tutorialTraining;
-    S.aiLevel = tutorialTraining ? 'tutorial' : readAILevel();
+    S.aiLevel = tutorialTraining ? 'tutorial' : (forcedLevel ? E.normalizeAILevel(forcedLevel) : readAILevel());
+    if (forcedLevel) {
+      try { localStorage.setItem('timicard_ai_level', S.aiLevel); } catch (err) { }
+    }
     if (S.online) {
       if (S.online.poll) clearInterval(S.online.poll);
       if (S.online.adjustPoll) clearInterval(S.online.adjustPoll);
@@ -972,7 +998,7 @@
     S.coinRequestId = requestId;
     S.coinFallback = false;
     let sent = false;
-    if (S.coinReady) sent = postToCoin({ type: 'coin-start', seed, requestId });
+    if (S.coinReady) sent = postToCoin({ type: 'coin-start', seed, requestId, face: forcedFace });
     if (!sent) {
       S.coinFallback = true;
       dom.coinFrame.src = 'coin-game.html?embed=1' + query + '&t=' + Date.now();
@@ -2581,13 +2607,20 @@
   $('btnMatch').addEventListener('click', startMatch);
   $('btnRulesBack').addEventListener('click', goMenu);
   $('btnTutorial').addEventListener('click', startTutorial);
+  $('btnAIBack').addEventListener('click', goMenu);
   $('btnMatchPractice').addEventListener('click', () => {
     S.matchToken++;
     releaseRoom();
     closeOverlay(dom.matchOverlay);
-    startGame('ai');
+    goAISelect();
   });
-  $('btnPractice').addEventListener('click', () => { releaseRoom(); startGame('ai'); });
+  $('btnPractice').addEventListener('click', () => { releaseRoom(); goAISelect(); });
+  document.querySelectorAll('[data-ai-level]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      releaseRoom();
+      startGame('ai', false, btn.dataset.aiLevel);
+    });
+  });
   $('btnMatchCancel').addEventListener('click', cancelMatch);
   $('btnQuit').addEventListener('click', () => {
     if (S.phase !== 'over' && S.players.length) {
@@ -2635,6 +2668,15 @@
   });
   dom.paperConfirm.addEventListener('click', confirmPaper);
   dom.paperClose.addEventListener('click', () => closeOverlay(dom.paperOverlay));
+  dom.btnViewDiceTable.addEventListener('click', () => {
+    if (!dom.diceOverlay.classList.contains('is-open')) return;
+    if (S.phase !== 'fix' && S.phase !== 'adjust') return;
+    dom.diceOverlay.classList.add('is-peeking');
+  });
+  dom.btnBackDice.addEventListener('click', () => {
+    dom.diceOverlay.classList.remove('is-peeking');
+  });
+
   dom.btnViewTable.addEventListener('click', () => {
     if (!S.scoreMode) return;
     dom.paperOverlay.classList.add('is-peeking');
