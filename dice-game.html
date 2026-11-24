@@ -15046,7 +15046,9 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   window.addEventListener('message', event => {
     const data = event.data;
     if (!data || typeof data !== 'object') return;
-    if (data.type === 'dice-roll') {
+    if (data.type === 'dice-reset') {
+      window.__diceGame.reset();
+    } else if (data.type === 'dice-roll') {
       window.__diceRequestId = data.requestId || null;
       resetDissolve();
       startRoll(data.seed);
