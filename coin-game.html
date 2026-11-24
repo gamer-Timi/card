@@ -13948,15 +13948,16 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
   }
 
   function makeRoll(baseSeed) {
+    const forcedFace = state.forceFace === undefined ? FORCE_FACE : state.forceFace;
     let last = null;
-    const attempts = FORCE_FACE ? 120 : 10;
+    const attempts = forcedFace ? 120 : 10;
     for (let attempt = 0; attempt < attempts; attempt++) {
       const seed = (baseSeed + attempt * 0x9e3779b9) >>> 0;
       const sim = simulateRoll(seed);
       sim.attempts = attempt + 1;
       last = sim;
       if (!sim.accepted || !compositionOk(sim.frames, sim.final)) continue;
-      if (FORCE_FACE && sim.final.face !== FORCE_FACE) continue;
+      if (forcedFace && sim.final.face !== forcedFace) continue;
       return sim;
     }
     const fallback = simulateRoll(0x5eedc01 + (baseSeed & 0xffff));
@@ -14689,7 +14690,8 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     els.statusText.textContent = '翻转中';
   }
 
-  function startRoll(seed) {
+  function startRoll(seed, forcedFace) {
+    state.forceFace = forcedFace === 'heads' || forcedFace === 'tails' ? forcedFace : null;
     const token = ++state.token;
     state.phase = 'preparing';
     state.frames = null;
@@ -14771,7 +14773,7 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     if (!data || typeof data !== 'object') return;
     if (data.type === 'coin-start') {
       window.__coinRequestId = data.requestId || null;
-      startRoll(data.seed);
+      startRoll(data.seed, data.face);
     } else if (data.type === 'coin-finish') {
       if (state.frames && state.phase !== 'settled') {
         state.t = state.duration;
