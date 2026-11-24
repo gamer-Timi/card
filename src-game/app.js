@@ -966,8 +966,7 @@
     dom.tableStatus.textContent = '投币决定先后';
     updateHUD();
     setTutorial(mode === 'tutorial' ? '教学关卡：硬币固定为 B，B 先手。' : '');
-    const guaFirst = mode === 'ai' && !S.tutorialTraining && S.aiLevel === 'gua';
-    startCoin(guaFirst ? 'A' : null, mode === 'tutorial' ? 345602860 : null);
+    startCoin(null, mode === 'tutorial' ? 345602860 : null);
   }
 
   function startCoin(forcedResult, seedOverride) {
