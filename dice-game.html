@@ -13985,6 +13985,16 @@ const CANNON = { AABB, ArrayCollisionMatrix, BODY_SLEEP_STATES, BODY_TYPES, Body
     floor.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
     world.addBody(floor);
 
+    const leftWall = new Body({ mass: 0, shape: new Plane(), material: floorMat });
+    leftWall.quaternion.setFromEuler(0, Math.PI / 2, 0);
+    leftWall.position.set(-3.0, 0, 0);
+    world.addBody(leftWall);
+
+    const rightWall = new Body({ mass: 0, shape: new Plane(), material: floorMat });
+    rightWall.quaternion.setFromEuler(0, -Math.PI / 2, 0);
+    rightWall.position.set(2.5, 0, 0);
+    world.addBody(rightWall);
+
     let dieImpacts = 0;
     world.addEventListener('beginContact', event => {
       if (event.bodyA && event.bodyB && event.bodyA.material === diceMat && event.bodyB.material === diceMat) {

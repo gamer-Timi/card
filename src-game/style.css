@@ -677,7 +677,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .table-clock {
   position: absolute;
   z-index: 5;
-  left: 71%;
+  left: 76%;
   top: 50%;
   width: 112px;
   height: 124px;
@@ -747,7 +747,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .mini-paper {
   position: absolute;
   z-index: 4;
-  left: 8.6%;
+  left: 5.2%;
   width: 152px;
   min-height: 198px;
   padding: 11px 10px 9px;
@@ -778,7 +778,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 
 .mini-paper--opponent {
   top: 16.5%;
-  left: 19%;
+  left: 13.5%;
   transform: perspective(760px) rotateX(32deg) rotateZ(182.2deg);
   filter: brightness(0.78) saturate(0.85);
 }
