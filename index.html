@@ -62,11 +62,15 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 }
 
 .eyebrow {
+  display: block;
   margin: 0;
+  max-width: 100%;
   color: rgba(215, 181, 117, 0.62);
   font-size: 9px;
   font-weight: 650;
+  line-height: 1.45;
   letter-spacing: 0.42em;
+  overflow-wrap: anywhere;
   text-transform: uppercase;
 }
 
@@ -1472,11 +1476,20 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 .overlay--result { z-index: 220; background: rgba(2, 5, 4, 0.9); }
 
 .modal-head,
-.paper-modal-head {
+.paper-modal-head,
+.rules-head,
+.ai-select-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+}
+
+.modal-head > div,
+.paper-modal-head > div,
+.rules-head > div,
+.ai-select-head > div {
+  min-width: 0;
 }
 
 .modal-head h2,
@@ -2081,6 +2094,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
 /* ============================== responsive ============================== */
 @media (max-width: 900px) {
   .table-outer { left: 3%; right: 3%; top: 8%; bottom: 7%; }
+  .eyebrow { font-size: 8px; letter-spacing: 0.28em; }
   .mini-paper { left: 4.5%; width: 142px; min-height: 196px; }
   .mini-paper-list { display: none; }
   .mini-paper { min-height: 92px; }
@@ -4227,6 +4241,14 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     return Math.min(11, Math.max(1, Math.floor(S.turnNo / 2) + 1));
   }
 
+  function setPlayerTag(tag, text) {
+    if (!tag) return;
+    for (const node of tag.childNodes) {
+      if (node.nodeType === 3) { node.nodeValue = text; return; }
+    }
+    tag.insertBefore(document.createTextNode(text), tag.firstChild);
+  }
+
   function updateHUD() {
     const you = S.players[0], opp = S.players[1];
     if (!you || !opp) return;
@@ -4663,6 +4685,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   function goMenu() {
     stopTimer();
     clearLater();
+    postToDice({ type: 'dice-reset' });
     releaseRoom();
     S.gameToken++;
     S.coinToken++;
@@ -4753,6 +4776,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     closeAllOverlays();
     showScreen('game');
     renderTableDice([]);
+    postToDice({ type: 'dice-reset' });
     dom.tableStatus.textContent = '投币决定先后';
     updateHUD();
     setTutorial(mode === 'tutorial' ? '教学关卡：硬币固定为 B，B 先手。' : '');
@@ -4850,36 +4874,38 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     tdb('update', { tag: myTag, value: JSON.stringify({ player: self, result: myResult, t: Date.now() }) }).catch(() => {});
     const started = Date.now();
     if (S.online.coinPoll) clearInterval(S.online.coinPoll);
+    let checking = false;
     const check = async () => {
-      if (!S.online || token !== S.coinToken) return;
+      if (!S.online || token !== S.coinToken || checking) return;
+      checking = true;
       const found = {};
-      for (const id of [self, other]) {
-        try {
-          const tag = onlineCoinTag(id);
-          const res = await tdb('get', { tag });
-          const raw = tagValue(res, tag);
-          if (raw) found[id] = JSON.parse(raw);
-        } catch (err) { }
-      }
+      try {
+        const pairs = await Promise.all([self, other].map(async id => {
+          try {
+            const tag = onlineCoinTag(id);
+            const res = await tdb('get', { tag });
+            const raw = tagValue(res, tag);
+            return raw ? [id, JSON.parse(raw)] : null;
+          } catch (err) { return null; }
+        }));
+        for (const pair of pairs) if (pair) found[pair[0]] = pair[1];
+      } finally { checking = false; }
       if (found[self] && found[other]) {
         clearInterval(S.online.coinPoll);
         S.online.coinPoll = null;
         const authoritative = found['A'] || found[self] || found[other];
         const first = authoritative.result === 'A' || authoritative.result === 'B' ? authoritative.result : myResult;
-        for (const id of [self, other]) {
-          try { await tdb('delete', { tag: onlineCoinTag(id) }); } catch (err) { }
-        }
         startOnlineTurn(first);
         return;
       }
-      if (Date.now() - started > 16000) {
+      if (Date.now() - started > 12000) {
         clearInterval(S.online.coinPoll);
         S.online.coinPoll = null;
         startOnlineTurn(myResult);
       }
     };
     check();
-    S.online.coinPoll = setInterval(check, 650);
+    S.online.coinPoll = setInterval(check, 380);
   }
 
   function finishCoin(result, token) {
@@ -5419,7 +5445,6 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     if (S.phase !== 'adjust' || !S.adjust) return;
     const a = S.adjust;
     const token = S.turnToken;
-    stopTimer();
     S.phase = 'adjustWait';
     dom.diceConfirm.disabled = true;
     dom.diceConfirm.textContent = '等待' + playerName(1) + '抉择…';
@@ -5490,7 +5515,6 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     const a = S.adjust;
     const values = a.humanValues.slice();
     const tag = onlineAdjustTag(S.online.selfId);
-    stopTimer();
     S.phase = 'adjustWait';
     dom.diceConfirm.disabled = true;
     dom.diceConfirm.textContent = '等待' + S.online.otherId + '抉择…';
@@ -6125,6 +6149,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
     S.gameToken++;
     stopTimer();
     clearLater();
+    postToDice({ type: 'dice-reset' });
     if (S.coinHandler) { window.removeEventListener('message', S.coinHandler); S.coinHandler = null; }
     if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
     if (S.dicePoll) { clearInterval(S.dicePoll); S.dicePoll = null; }
@@ -6459,7 +6484,7 @@ button:focus-visible { outline: 1px solid var(--gold-bright); outline-offset: 3p
   dom.paperClose.addEventListener('click', () => closeOverlay(dom.paperOverlay));
   dom.btnViewDiceTable.addEventListener('click', () => {
     if (!dom.diceOverlay.classList.contains('is-open')) return;
-    if (S.phase !== 'fix' && S.phase !== 'adjust') return;
+    if (S.phase !== 'fix' && S.phase !== 'adjust' && S.phase !== 'adjustWait') return;
     dom.diceOverlay.classList.add('is-peeking');
   });
   dom.btnBackDice.addEventListener('click', () => {
