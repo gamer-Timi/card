@@ -1048,7 +1048,8 @@
   }
 
   function onlineCoinTag(playerId) {
-    return 'timicard_coin_' + S.roomId + '_' + playerId;
+    const gen = S.online && S.online.coinSeed ? S.online.coinSeed : 0;
+    return 'timicard_coin_' + S.roomId + '_' + gen + '_' + playerId;
   }
 
   function handleOnlineCoin(result, token) {
@@ -2378,7 +2379,8 @@
       adjustmentOpenedTurn: null,
       finalShownTurn: null,
       lastRoundBanner: null,
-      coinDone: false
+      coinDone: false,
+      coinSeed: Number(st.coinSeed) || 0
     };
     S.players = [
       { id: selfId, name: selfId, isHuman: true, card: { ...(st.cards[selfId] || E.emptyCard()) }, total: 0, threeFixUsed: !!(st.threeFix && st.threeFix[selfId]) },
@@ -2386,7 +2388,6 @@
     ];
     refreshPlayerTotal(0);
     refreshPlayerTotal(1);
-    clearOnlineCoinTags();
     S.active = st.active === selfId ? 0 : 1;
     dom.game.classList.remove('is-dom-dice', 'is-final-dice');
     closeAllOverlays();
