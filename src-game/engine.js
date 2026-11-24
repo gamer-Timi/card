@@ -245,6 +245,262 @@
     return Array.from({ length: 5 }, () => 1 + Math.floor(rng() * 6));
   }
 
+  /* ----------------------------- strong AI -------------------------------- */
+  const AI_LEVELS = ['gua', 'hang', 'ren', 'bot', 'trash'];
+  const DEFAULT_AI_LEVEL = 'hang';
+
+  const AI_LEVEL_ALIASES = {
+    gua: 'gua', '挂': 'gua',
+    hang: 'hang', '夯': 'hang',
+    ren: 'ren', '人上人': 'ren',
+    bot: 'bot', '人机': 'bot',
+    trash: 'trash', '拉完了': 'trash'
+  };
+
+  function normalizeAILevel(level) {
+    const key = String(level || '').trim();
+    return AI_LEVEL_ALIASES[key] || DEFAULT_AI_LEVEL;
+  }
+
+  function adjustedOptions(values) {
+    let out = [[]];
+    for (const v of values) {
+      const a = v === 1 ? 6 : v - 1;
+      const b = v === 6 ? 1 : v + 1;
+      const options = a === b ? [a] : [a, b];
+      const next = [];
+      for (const prefix of out) for (const x of options) next.push(prefix.concat(x));
+      out = next;
+    }
+    return out;
+  }
+
+  function indexCombos(n, k) {
+    if (k <= 0) return [[]];
+    const out = [];
+    const rec = (start, arr) => {
+      if (arr.length === k) { out.push(arr.slice()); return; }
+      for (let i = start; i < n; i++) {
+        arr.push(i);
+        rec(i + 1, arr);
+        arr.pop();
+      }
+    };
+    rec(0, []);
+    return out;
+  }
+
+  function maxUnusedScore(hand, card) {
+    let best = 0;
+    for (const c of CATEGORIES) {
+      if (card[c.key] != null) continue;
+      best = Math.max(best, scoreHand(hand, c.key));
+    }
+    return best;
+  }
+
+  const ALL_FIVE = (() => {
+    const out = [];
+    for (let a = 1; a <= 6; a++) for (let b = 1; b <= 6; b++) for (let c = 1; c <= 6; c++)
+      for (let d = 1; d <= 6; d++) for (let e = 1; e <= 6; e++) out.push([a, b, c, d, e]);
+    return out;
+  })();
+
+  const CATEGORY_EV = (() => {
+    const ev = {};
+    for (const c of CATEGORIES) {
+      let sum = 0;
+      for (const hand of ALL_FIVE) sum += scoreHand(hand, c.key);
+      ev[c.key] = sum / ALL_FIVE.length;
+    }
+    return ev;
+  })();
+
+  function chooseScoreShadow(dice, card) {
+    let bestKey = null;
+    let bestValue = -Infinity;
+    let bestScore = -1;
+    let maxCurrent = 0;
+    for (const c of CATEGORIES) if (card[c.key] == null) maxCurrent = Math.max(maxCurrent, scoreHand(dice, c.key));
+    for (const c of CATEGORIES) {
+      if (card[c.key] != null) continue;
+      const s = scoreHand(dice, c.key);
+      if (maxCurrent > 0 && s === 0) continue;
+      const value = s - CATEGORY_EV[c.key];
+      if (value > bestValue || (value === bestValue && s > bestScore)) {
+        bestValue = value;
+        bestScore = s;
+        bestKey = c.key;
+      }
+    }
+    if (!bestKey) bestKey = firstUnused(card);
+    return { key: bestKey, score: bestKey ? scoreHand(dice, bestKey) : 0 };
+  }
+
+  function chooseScoreLookahead(dice, card, samples = 14) {
+    const unused = CATEGORIES.filter(c => card[c.key] == null);
+    if (unused.length <= 2) {
+      let best = null;
+      for (const c of unused) {
+        const s = scoreHand(dice, c.key);
+        if (!best || s > best.score) best = { key: c.key, score: s };
+      }
+      return best || { key: firstUnused(card), score: 0 };
+    }
+    const scores = new Map(unused.map(c => [c.key, scoreHand(dice, c.key)]));
+    const maxCurrent = Math.max(0, ...scores.values());
+    const candidates = maxCurrent > 0 ? unused.filter(c => scores.get(c.key) > 0) : unused;
+    let best = null;
+    for (const c of candidates) {
+      const current = scores.get(c.key);
+      let total = current * samples;
+      for (let n = 0; n < samples; n++) {
+        const futureCard = { ...card };
+        futureCard[c.key] = current;
+        let future = 0;
+        for (let t = 0; t < unused.length - 1; t++) {
+          const hand = rollFive();
+          const pick = chooseScoreShadow(hand, futureCard);
+          future += pick.score;
+          futureCard[pick.key] = pick.score;
+        }
+        total += future;
+      }
+      if (!best || total > best.total || (total === best.total && current > best.score)) {
+        best = { key: c.key, score: current, total };
+      }
+    }
+    return best || chooseScoreShadow(dice, card);
+  }
+
+  function aiStrategy(level, kind) {
+    const lv = normalizeAILevel(level);
+    if (lv === 'gua') return kind === 'adjust' ? 'cheat' : 'optimal';
+    if (lv === 'trash') return 'random';
+    if (lv === 'hang') return 'optimal';
+    const r = Math.random();
+    if (lv === 'ren') return r < 0.5 ? 'optimal' : 'random';
+    if (lv === 'bot') {
+      if (r < 0.10) return 'strong';
+      if (r < 0.15) return 'optimal';
+      return 'greedy';
+    }
+    return 'greedy';
+  }
+
+  function randomFix(dice, threeAvailable) {
+    const maxFix = threeAvailable ? 3 : 2;
+    const count = 1 + Math.floor(Math.random() * maxFix);
+    const idx = dice.map((_, i) => i);
+    for (let i = idx.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idx[i], idx[j]] = [idx[j], idx[i]];
+    }
+    return { indices: idx.slice(0, count).sort((a, b) => a - b), activeShare: count === 1 ? 2 : 1 };
+  }
+
+  function evaluateFix(dice, subset, card, mode) {
+    const fixed = subset.map(i => dice[i]);
+    const remaining = dice.filter((_, i) => !subset.includes(i));
+    const n = subset.length;
+    const ownCount = n === 1 ? 2 : 1;
+    const splits = indexCombos(remaining.length, ownCount);
+    let total = 0;
+    for (const ownIdx of splits) {
+      const ownVals = ownIdx.map(i => remaining[i]);
+      const humanVals = remaining.filter((_, i) => !ownIdx.includes(i));
+      const ownOpts = adjustedOptions(ownVals);
+      const humanOpts = mode === 'greedy' ? [humanVals] : adjustedOptions(humanVals);
+      let bestOwn = -Infinity;
+      for (const own of ownOpts) {
+        let worst = Infinity;
+        let sum = 0;
+        for (const human of humanOpts) {
+          const hand = fixed.concat(own, human);
+          const value = maxUnusedScore(hand, card);
+          worst = Math.min(worst, value);
+          sum += value;
+        }
+        const value = mode === 'expected' ? sum / humanOpts.length : worst;
+        bestOwn = Math.max(bestOwn, value);
+      }
+      total += bestOwn;
+    }
+    let value = splits.length ? total / splits.length : 0;
+    if (n === 3) value -= 1.0;
+    return value;
+  }
+
+  function chooseFixStrong(dice, threeAvailable, card, mode) {
+    const maxFix = threeAvailable ? 3 : 2;
+    const subsets = subsetsOfSize(dice.length, maxFix);
+    let best = null;
+    for (const subset of subsets) {
+      const value = evaluateFix(dice, subset, card, mode);
+      if (!best || value > best.value || (value === best.value && subset.length < best.indices.length)) {
+        best = { indices: subset.slice().sort((a, b) => a - b), value };
+      }
+    }
+    return { indices: best ? best.indices : [0], activeShare: best && best.indices.length === 1 ? 2 : 1 };
+  }
+
+  function aiChooseFix(dice, threeAvailable, card, level) {
+    const strategy = aiStrategy(level, 'fix');
+    if (strategy === 'random') return randomFix(dice, threeAvailable);
+    if (strategy === 'greedy') return chooseFixStrong(dice, threeAvailable, card, 'greedy');
+    if (strategy === 'strong') return chooseFixStrong(dice, threeAvailable, card, 'expected');
+    return chooseFixStrong(dice, threeAvailable, card, 'maximin');
+  }
+
+  function aiChooseAdjust(fixedDice, ownValues, opponentValues, aiActive, aiCard, humanCard, level, options = {}) {
+    const strategy = aiStrategy(level, 'adjust');
+    const ownOpts = adjustedOptions(ownValues);
+    if (strategy === 'random') return ownOpts[Math.floor(Math.random() * ownOpts.length)].slice();
+    const cheatFinal = options.cheat && Array.isArray(options.humanFinal) ? options.humanFinal.slice() : null;
+    const card = aiActive ? aiCard : humanCard;
+    let best = null;
+    for (const own of ownOpts) {
+      let score;
+      if (cheatFinal) {
+        const hand = fixedDice.concat(own, cheatFinal);
+        score = maxUnusedScore(hand, card);
+      } else if (strategy === 'greedy') {
+        const hand = fixedDice.concat(own, opponentValues);
+        score = maxUnusedScore(hand, card);
+      } else {
+        const humanOpts = adjustedOptions(opponentValues);
+        let worst = aiActive ? Infinity : -Infinity;
+        let sum = 0;
+        for (const human of humanOpts) {
+          const hand = fixedDice.concat(own, human);
+          const value = maxUnusedScore(hand, card);
+          worst = aiActive ? Math.min(worst, value) : Math.max(worst, value);
+          sum += value;
+        }
+        score = strategy === 'strong' ? sum / humanOpts.length : worst;
+      }
+      if (!best || (aiActive ? score > best.score : score < best.score)) {
+        best = { values: own.slice(), score };
+      }
+    }
+    return best ? best.values : ownOpts[0].slice();
+  }
+
+  function randomScore(dice, card) {
+    const unused = CATEGORIES.filter(c => card[c.key] == null);
+    if (!unused.length) return { key: firstUnused(card), score: 0 };
+    const c = unused[Math.floor(Math.random() * unused.length)];
+    return { key: c.key, score: scoreHand(dice, c.key) };
+  }
+
+  function aiChooseScore(dice, card, level) {
+    const strategy = aiStrategy(level, 'score');
+    if (strategy === 'random') return randomScore(dice, card);
+    if (strategy === 'greedy') return bestCategory(dice, card);
+    if (strategy === 'strong') return chooseScoreShadow(dice, card);
+    return chooseScoreLookahead(dice, card);
+  }
+
   /* --------------------------- tutorial data ---------------------------- */
   // The opening hand is deliberately "scattered": it contains no combination
   // category. Whatever pair the player fixes, the AI can answer with the pair
@@ -295,6 +551,12 @@
     isCardFull,
     firstUnused,
     bestCategory,
+    AI_LEVELS,
+    DEFAULT_AI_LEVEL,
+    normalizeAILevel,
+    aiChooseFix,
+    aiChooseAdjust,
+    aiChooseScore,
     chooseAIFix,
     chooseActiveAdjustment,
     chooseSabotage,

@@ -7,6 +7,16 @@
   const TEST_MODE = new URLSearchParams(location.search).get('test') === '1';
   const PREVIEW = new URLSearchParams(location.search).get('preview') ||
     (location.hash.startsWith('#preview=') ? location.hash.slice(9) : null);
+
+  function readAILevel() {
+    try {
+      const q = new URLSearchParams(location.search).get('ai');
+      if (q) return E.normalizeAILevel(q);
+      const stored = localStorage.getItem('timicard_ai_level');
+      if (stored) return E.normalizeAILevel(stored);
+    } catch (err) { }
+    return E.DEFAULT_AI_LEVEL;
+  }
   const CLIENT_ID = (() => {
     try {
       let id = sessionStorage.getItem('timicard_client_id');
@@ -63,6 +73,8 @@
     scoreAllowed: null,
     tutorialStage: 'off',
     tutorialOnes: 0,
+    tutorialTraining: false,
+    aiLevel: E.DEFAULT_AI_LEVEL,
     gameToken: 0,
     turnToken: 0,
     timeouts: [],
@@ -77,6 +89,7 @@
       fired: false,
       token: 0
     },
+    clockFrozen: null,
     matchToken: 0,
     roomId: null,
     roomHost: false,
@@ -475,16 +488,18 @@
 
   function tickClock() {
     const t = S.timer;
-    let remaining = 0;
-    if (t.active) remaining = Math.max(0, t.end - performance.now());
-    const fraction = t.active && t.duration ? remaining / t.duration : 0;
+    const frozen = !t.active ? S.clockFrozen : null;
+    const clockRemaining = t.active ? Math.max(0, t.end - performance.now()) : (frozen ? frozen.remaining : 0);
+    const clockDuration = t.active ? t.duration : (frozen ? frozen.duration : 0);
+    const clockOn = t.active || !!frozen;
+    const fraction = clockOn && clockDuration ? Math.min(1, clockRemaining / 60000) : 0;
     dom.clockArc.style.strokeDashoffset = String(CLOCK_C * (1 - fraction));
-    dom.clockArc.classList.toggle('is-urgent', t.active && remaining <= 10000);
-    const elapsedSeconds = t.active && t.duration ? (t.duration - remaining) / 1000 : 0;
-    dom.clockHand.style.transform = 'rotate(' + (((elapsedSeconds % 60) / 60) * 360) + 'deg)';
-    setMiniClock(dom.diceTimer, remaining, t.duration, t.active && dom.diceOverlay.classList.contains('is-open'));
-    setMiniClock(dom.paperTimer, remaining, t.duration, t.active && dom.paperOverlay.classList.contains('is-open'));
-    if (t.active && remaining <= 0 && !t.fired) {
+    dom.clockArc.classList.toggle('is-urgent', t.active && clockRemaining <= 10000);
+    const elapsedSeconds = clockOn && clockDuration ? (clockDuration - clockRemaining) / 1000 : 0;
+    dom.clockHand.style.transform = 'rotate(' + (-((elapsedSeconds % 60) / 60) * 360) + 'deg)';
+    setMiniClock(dom.diceTimer, clockRemaining, clockDuration, clockOn && dom.diceOverlay.classList.contains('is-open'));
+    setMiniClock(dom.paperTimer, clockRemaining, clockDuration, clockOn && dom.paperOverlay.classList.contains('is-open'));
+    if (t.active && clockRemaining <= 0 && !t.fired) {
       t.fired = true;
       t.active = false;
       const cb = t.onTimeout;
@@ -495,6 +510,7 @@
   setInterval(tickClock, 100);
 
   function startTimer(seconds, onTimeout) {
+    S.clockFrozen = null;
     const token = ++S.timer.token;
     S.timer = {
       active: true,
@@ -507,11 +523,42 @@
     tickClock();
   }
 
-  function stopTimer() {
-    S.timer.token++;
-    S.timer.active = false;
-    S.timer.fired = true;
-    S.timer.onTimeout = null;
+  function stopTimer(keepDisplay) {
+    const t = S.timer;
+    if (keepDisplay && t.active && t.duration) {
+      S.clockFrozen = { remaining: Math.max(0, t.end - performance.now()), duration: t.duration };
+    } else {
+      S.clockFrozen = null;
+    }
+    t.token++;
+    t.active = false;
+    t.fired = true;
+    t.onTimeout = null;
+    tickClock();
+  }
+
+  function freezeClock() {
+    if (S.timer.active && S.timer.duration) {
+      S.clockFrozen = { remaining: Math.max(0, S.timer.end - performance.now()), duration: S.timer.duration };
+      S.timer.active = false;
+      S.timer.fired = true;
+      S.timer.onTimeout = null;
+      tickClock();
+    }
+  }
+
+  function startSharedClock(clock) {
+    if (!clock || !clock.endsAt) return;
+    S.clockFrozen = null;
+    const remaining = Math.max(0, Number(clock.endsAt) - Date.now());
+    S.timer = {
+      active: true,
+      end: performance.now() + remaining,
+      duration: Number(clock.duration) || remaining,
+      onTimeout: null,
+      fired: false,
+      token: S.timer.token + 1
+    };
     tickClock();
   }
 
@@ -834,7 +881,9 @@
   }
 
   /* ----------------------------- game lifecycle --------------------------- */
-  function startGame(mode) {
+  function startGame(mode, tutorialTraining = false) {
+    S.tutorialTraining = !!tutorialTraining;
+    S.aiLevel = tutorialTraining ? 'tutorial' : readAILevel();
     if (S.online) {
       if (S.online.poll) clearInterval(S.online.poll);
       if (S.online.adjustPoll) clearInterval(S.online.adjustPoll);
@@ -883,6 +932,7 @@
     dom.game.classList.remove('is-coining');
     initPlayers();
     S.timer.active = false;
+    S.clockFrozen = null;
     dom.diceOverlay.classList.remove('is-open');
     closeAllOverlays();
     showScreen('game');
@@ -890,7 +940,8 @@
     dom.tableStatus.textContent = '投币决定先后';
     updateHUD();
     setTutorial(mode === 'tutorial' ? '教学关卡：硬币固定为 B，B 先手。' : '');
-    startCoin(null, mode === 'tutorial' ? 345602860 : null);
+    const guaFirst = mode === 'ai' && !S.tutorialTraining && S.aiLevel === 'gua';
+    startCoin(guaFirst ? 'A' : null, mode === 'tutorial' ? 345602860 : null);
   }
 
   function startCoin(forcedResult, seedOverride) {
@@ -1030,6 +1081,15 @@
     else beginTurn(result === 'A' ? 0 : 1);
   }
 
+  function showRoundStart(activeId) {
+    const key = activeId + ':' + S.turnNo;
+    if (S.online) {
+      if (S.online.lastRoundBanner === key) return;
+      S.online.lastRoundBanner = key;
+    }
+    showBanner('第 ' + roundNumber() + ' 回合开始 · ' + activeId + ' 行动', 2000);
+  }
+
   function beginTurn(active, options = {}) {
     if (S.phase === 'over') return;
     S.active = active;
@@ -1044,8 +1104,8 @@
     S.scoreKey = null;
     updateHUD();
     renderTableDice([]);
-    dom.tableStatus.textContent = active === 0 ? '准备投骰' : 'B准备投骰';
-    showBanner(active === 0 ? '轮到A了' : '轮到B了');
+    dom.tableStatus.textContent = active === 0 ? '准备投骰' : playerName(1) + '准备投骰';
+    showRoundStart(active === 0 ? playerName(0) : playerName(1));
     const token = S.turnToken;
     later(1150, () => {
       if (S.turnToken !== token) return;
@@ -1216,6 +1276,9 @@
       setTutorial('');
     }
     startTimer(30, () => submitFix(true));
+    if (S.online && S.active === 0) {
+      publishOnlineState({ phase: 'fix', active: S.online.selfId, clock: { kind: 'fix', duration: 30000, endsAt: Date.now() + 30000 }, turnNo: S.turnNo });
+    }
   }
 
   function renderFixPanel() {
@@ -1311,7 +1374,9 @@
   function aiFix() {
     if (S.phase !== 'rolled' || S.active !== 1) return;
     const ai = S.players[1];
-    const choice = E.chooseAIFix(S.dice, !ai.threeFixUsed, ai.card);
+    const choice = S.tutorialTraining
+      ? E.chooseAIFix(S.dice, !ai.threeFixUsed, ai.card)
+      : E.aiChooseFix(S.dice, !ai.threeFixUsed, ai.card, S.aiLevel);
     S.fixed = choice.indices.slice();
     if (S.fixed.length === 3) ai.threeFixUsed = true;
     S.phase = 'fixed';
@@ -1356,6 +1421,9 @@
     const humanIsActive = S.active === 0;
     const humanValues = (humanIsActive ? activeVals : inactiveVals).slice();
     const hiddenCount = humanIsActive ? inactiveCount : activeCount;
+    const aiActive = S.active === 1;
+    const aiShare = aiActive ? activeVals : inactiveVals;
+    const humanShare = aiActive ? inactiveVals : activeVals;
     S.adjust = {
       fixedValues,
       fixedCount,
@@ -1365,14 +1433,23 @@
       humanValues,
       hiddenCount,
       aiCount: humanIsActive ? inactiveCount : activeCount,
-      aiValues: null
+      aiValues: null,
+      aiShareValues: aiShare.slice(),
+      aiCheatPending: false
     };
-    if (S.mode !== 'tutorial') {
+    if (S.tutorialTraining) {
       if (S.active === 0) {
         S.adjust.aiValues = E.chooseSabotage(fixedValues, S.adjust.hiddenCount, S.players[0].card, humanValues);
       } else {
         S.adjust.aiValues = E.chooseActiveAdjustment(fixedValues, S.adjust.hiddenCount, S.players[1].card, humanValues);
       }
+    } else if (S.aiLevel === 'gua') {
+      S.adjust.aiCheatPending = true;
+    } else {
+      S.adjust.aiValues = E.aiChooseAdjust(
+        fixedValues, aiShare, humanShare, aiActive,
+        S.players[1].card, S.players[0].card, S.aiLevel
+      );
     }
     openAdjustOverlay();
   }
@@ -1400,7 +1477,7 @@
       inactiveCount,
       shares
     };
-    publishOnlineState({ phase: 'adjust', active: self, adjust, turnNo: S.turnNo, seed: S.online.rollingSeed });
+    publishOnlineState({ phase: 'adjust', active: self, adjust, clock: { kind: 'adjust', duration: 60000, endsAt: Date.now() + 60000 }, turnNo: S.turnNo, seed: S.online.rollingSeed });
     S.adjust = {
       fixedValues,
       fixedCount: fixed.length,
@@ -1535,6 +1612,13 @@
     dom.diceNote.textContent = '双方确认后将揭晓最终骰面';
     const fixedValues = a.fixedValues.slice();
     const humanValues = a.humanValues.slice();
+    if (S.mode === 'ai' && !S.tutorialTraining && S.aiLevel === 'gua' && a.aiCheatPending) {
+      a.aiValues = E.aiChooseAdjust(
+        fixedValues, a.aiShareValues || [], humanValues, S.active === 1,
+        S.players[1].card, S.players[0].card, 'gua', { cheat: true, humanFinal: humanValues }
+      );
+      a.aiCheatPending = false;
+    }
     let aiValues = [];
     if (S.mode === 'tutorial' && S.tutorialStage === 'p1adjust') {
       const p = humanValues[0] || 1;
@@ -1643,7 +1727,7 @@
     showOnlineFinal(final, faces);
     later(1200, () => {
       if (!S.online || S.active !== 0) return;
-      publishOnlineState({ phase: 'score', active: S.online.selfId, finalDice: final, turnNo: S.turnNo });
+      publishOnlineState({ phase: 'score', active: S.online.selfId, finalDice: final, clock: { kind: 'score', duration: 30000, endsAt: Date.now() + 30000 }, turnNo: S.turnNo });
       beginScorePhase();
     });
   }
@@ -1725,7 +1809,9 @@
       const token = S.turnToken;
       later(950, () => {
         if (S.turnToken !== token || S.active !== 1) return;
-        const best = E.bestCategory(S.finalDice, S.players[1].card);
+        const best = S.tutorialTraining
+          ? E.bestCategory(S.finalDice, S.players[1].card)
+          : E.aiChooseScore(S.finalDice, S.players[1].card, S.aiLevel);
         S.scoreKey = best.key;
         showToast('B选择：' + CAT_BY_KEY[best.key].label + ' +' + best.score, 1500);
         dom.tableStatus.textContent = 'B选择【' + CAT_BY_KEY[best.key].label + '】 +' + best.score;
@@ -1745,7 +1831,7 @@
     S.scoreMode = false;
     closeOverlay(dom.paperOverlay);
     closeOverlay(dom.rulePop);
-    stopTimer();
+    stopTimer(true);
     updateHUD();
     updateMiniPapers();
     showToast(playerName(S.active) + ' 选择【' + CAT_BY_KEY[key].label + '】 +' + score, 1600);
@@ -1778,7 +1864,8 @@
 
   /* ------------------------------- tutorial -------------------------------- */
   function startTutorial() {
-    startGame('tutorial');
+    startGame('ai', true);
+    later(150, () => showToast('新手训练：规则、硬币、骰子、计时和计分都与人机练习相同', 2800));
   }
 
   function tutorialAiFirst() {
@@ -2227,6 +2314,7 @@
     if (S.coinTimeout) { clearTimeout(S.coinTimeout); S.coinTimeout = null; }
     if (S.dicePoll) { clearInterval(S.dicePoll); S.dicePoll = null; }
     S.mode = 'online';
+    S.tutorialTraining = false;
     S.phase = 'idle';
     S.turnNo = st.turnNo || 0;
     S.dice = [];
@@ -2253,6 +2341,7 @@
       remoteRolling: false,
       adjustmentOpenedTurn: null,
       finalShownTurn: null,
+      lastRoundBanner: null,
       coinDone: false
     };
     S.players = [
@@ -2316,7 +2405,7 @@
     const activeName = activeId;
     if (S.active === 0) {
       dom.tableStatus.textContent = playerName(0) + '的回合 · 准备投骰';
-      showBanner('轮到' + activeName + '了');
+      showRoundStart(activeName);
       const token = S.turnToken;
       later(1150, () => {
         if (!S.online || S.turnToken !== token || S.active !== 0 || S.phase !== 'intro') return;
@@ -2325,7 +2414,7 @@
       });
     } else {
       dom.tableStatus.textContent = activeName + '的回合 · 等待投骰';
-      showBanner('轮到' + activeName + '了');
+      showRoundStart(activeName);
     }
   }
 
@@ -2373,6 +2462,12 @@
     S.active = activeLocal;
     updateHUD();
     updateMiniPapers();
+    if (st.phase === 'intro') {
+      showRoundStart(st.active);
+      freezeClock();
+    } else if (st.phase !== 'adjust' && st.clock) {
+      startSharedClock(st.clock);
+    }
     if (st.phase === 'coin') {
       if (!S.online.coinDone && !S.coinHandler && S.phase !== 'coin') startCoin(null, st.coinSeed);
       return;
@@ -2477,6 +2572,7 @@
     S.phase = 'intro';
     updateHUD();
     updateMiniPapers();
+    showRoundStart(other);
     dom.tableStatus.textContent = '等待' + other + '投骰…';
   }
 
@@ -2596,6 +2692,12 @@
     state: S,
     startAI() { startGame('ai'); },
     startTutorial,
+    setAILevel(level) {
+      S.aiLevel = E.normalizeAILevel(level);
+      try { localStorage.setItem('timicard_ai_level', S.aiLevel); } catch (err) { }
+      return S.aiLevel;
+    },
+    getAILevel() { return S.aiLevel; },
     snapshot() {
       return {
         screen: S.screen,
