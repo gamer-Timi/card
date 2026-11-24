@@ -39,11 +39,33 @@
           <span class="menu-btn-en">MATCH</span>
         </button>
       </div>
-      <button class="practice-link" id="btnPractice" type="button">没有 B？进入人机练习 <span>→</span></button>
+      <button class="practice-link" id="btnPractice" type="button">人机训练 <span>→</span></button>
       <p class="menu-foot">掷骰 · 固定 · 暗调 · 纸上定胜负</p>
     </div>
     <div class="menu-corner menu-corner--tl"></div>
     <div class="menu-corner menu-corner--br"></div>
+  </section>
+
+
+  <!-- ============================== AI SELECT ============================== -->
+  <section class="screen screen--ai" id="aiSelectScreen">
+    <div class="ai-select-wrap">
+      <header class="ai-select-head">
+        <div>
+          <p class="eyebrow">AI TRAINING</p>
+          <h2>人机训练</h2>
+          <p class="ai-select-sub">选择难度</p>
+        </div>
+        <button class="ghost-btn" id="btnAIBack" type="button">返回</button>
+      </header>
+      <div class="ai-level-grid">
+        <button class="ai-level-btn" data-ai-level="gua" type="button"><strong>挂</strong></button>
+        <button class="ai-level-btn" data-ai-level="hang" type="button"><strong>夯</strong></button>
+        <button class="ai-level-btn" data-ai-level="ren" type="button"><strong>人上人</strong></button>
+        <button class="ai-level-btn" data-ai-level="bot" type="button"><strong>人机</strong></button>
+        <button class="ai-level-btn" data-ai-level="trash" type="button"><strong>拉完了</strong></button>
+      </div>
+    </div>
   </section>
 
   <!-- ============================== RULES ============================== -->
@@ -252,8 +274,12 @@
       <div class="dice-meta" id="diceMeta"></div>
       <div class="modal-actions">
         <span class="modal-note" id="diceNote"></span>
+        <button class="ghost-btn" id="btnViewDiceTable" type="button">查看桌面</button>
         <button class="primary-btn" id="diceConfirm" type="button">确定</button>
       </div>
+    </div>
+    <div class="peek-bar" id="dicePeekBar">
+      <button class="primary-btn" id="btnBackDice" type="button">返回操作</button>
     </div>
   </div>
 
